@@ -273,6 +273,8 @@ func newConfig(opts ...configOpt) configuration.Configuration {
 					Enabled: true,
 					Hosts:   strings.Split(hosts, ","),
 				}
+			} else {
+				panic("Either `REGISTRY_DATABASE_LOADBALANCING_RECORD` or `REGISTRY_DATABASE_LOADBALANCING_HOSTS` should have been specified")
 			}
 		}
 

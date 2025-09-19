@@ -280,19 +280,19 @@ api:conformance:
   stage: integration
   variables: &database-variables
     FF_NETWORK_PER_BUILD: 1
-    POSTGRES_PASSWORD: "secret"
-    POSTGRES_DB: "registry_test"
     REGISTRY_DATABASE_ENABLED: "true"
     REGISTRY_DATABASE_HOST: "db"
     REGISTRY_DATABASE_PORT: "5432"
-    REGISTRY_DATABASE_USER: "postgres"
-    REGISTRY_DATABASE_PASSWORD: "secret"
+    REGISTRY_DATABASE_USER: "boryna"
+    REGISTRY_DATABASE_PASSWORD: "Chleboslaw"
     REGISTRY_DATABASE_DBNAME: "registry_test"
     REGISTRY_DATABASE_SSLMODE: "disable"
     TAGS: 'integration'
   services:
-    - name: postgres:${PG_VERSION}-alpine
+    - name: registry.gitlab.com/gitlab-org/container-registry/postgresql-ci:${PG_VERSION}
       alias: "db"
+      variables:
+        POSTGRES_ROLE: primary
   script: $GO_TEST -v -timeout=25m -coverprofile=coverage.out -tags=$TAGS
 
 api:online-gc:
@@ -389,8 +389,10 @@ database:api-fault-tolerance:
     TAGS: 'integration,toxiproxy'
   services:
     # `services` are not extended, so we have to redeclare `postgres` here.
-    - name: postgres:${PG_VERSION}-alpine
+    - name: registry.gitlab.com/gitlab-org/container-registry/postgresql-ci:${PG_VERSION}
       alias: "db"
+      variables:
+        POSTGRES_ROLE: primary
     - name: shopify/toxiproxy
       alias: "toxiproxy"
   script: $GO_TEST -v -coverprofile=coverage.out -tags=$TAGS -run ^TestDBFaultTolerance
@@ -407,12 +409,7 @@ database:background-migrations:
   <<: *database
   variables: &database-load-balancing-variables
     <<: *database-variables
-    POSTGRESQL_PASSWORD: "secret"
-    POSTGRESQL_DATABASE: "registry_test"
-    POSTGRESQL_REPLICATION_USER: "repluser"
-    POSTGRESQL_REPLICATION_PASSWORD: "replpassword"
-    POSTGRESQL_REPLICATION_USE_PASSFILE: "false"
-    REGISTRY_DATABASE_HOST: "primary"
+    REGISTRY_DATABASE_HOST: "postgres-primary"
     REGISTRY_DATABASE_LOADBALANCING_ENABLED: "true"
     REGISTRY_REDIS_LOADBALANCING_ENABLED:  "true"
     REGISTRY_REDIS_LOADBALANCING_ADDR: "redis:6379"
@@ -421,29 +418,28 @@ database:background-migrations:
   services:
     - name: redis:alpine
       alias: "redis"
-    - name: bitnamilegacy/postgresql:${PG_VERSION}
-      alias: "primary"
+    - name: registry.gitlab.com/gitlab-org/container-registry/postgresql-ci:${PG_VERSION}
+      alias: "postgres-primary"
       variables:
-        POSTGRESQL_REPLICATION_MODE: "master"
-        POSTGRESQL_REPLICATION_USE_PASSFILE: "false"
-    - name: bitnamilegacy/postgresql:${PG_VERSION}
-      alias: "replica1"
+        POSTGRES_ROLE: primary
+    - name: registry.gitlab.com/gitlab-org/container-registry/postgresql-ci:${PG_VERSION}
+      alias: "postgres-replica1"
       variables:
-        POSTGRESQL_REPLICATION_MODE: "slave"
-        POSTGRESQL_MASTER_HOST: "primary"
-        POSTGRESQL_REPLICATION_USE_PASSFILE: "false"
-    - name: bitnamilegacy/postgresql:${PG_VERSION}
-      alias: "replica2"
+        POSTGRES_ROLE: replica
+        PRIMARY_HOST: postgres-primary
+        REPLICATION_SLOT: 1
+    - name: registry.gitlab.com/gitlab-org/container-registry/postgresql-ci:${PG_VERSION}
+      alias: "postgres-replica2"
       variables:
-        POSTGRESQL_REPLICATION_MODE: "slave"
-        POSTGRESQL_MASTER_HOST: "primary"
-        POSTGRESQL_REPLICATION_USE_PASSFILE: "false"
+        POSTGRES_ROLE: replica
+        PRIMARY_HOST: postgres-primary
+        REPLICATION_SLOT: 2
     # not needed for all scenarios but avoids having to declare all services in each as `services` can't be extended
     - name: registry.gitlab.com/gitlab-org/container-registry/test-dns-server:28d4a455
       alias: "test-dns-server"
       variables:
         DNS_SERVER_SRV_RECORD: "replica.registry-db.service.consul"
-        DNS_SERVER_REPLY_HOSTS: "replica1,replica2"
+        DNS_SERVER_REPLY_HOSTS: "postgres-replica1,postgres-replica2"
         DNS_SERVER_REPLY_PORT: "5432"
         DNS_SERVER_LISTEN_PORT: "8600"
   script: $GO_TEST -v -timeout=35m -coverprofile=coverage.out -tags=$TAGS
@@ -452,7 +448,7 @@ database:api-load-balancing-hosts:
   <<: *database-load-balancing
   variables:
     <<: *database-load-balancing-variables
-    REGISTRY_DATABASE_LOADBALANCING_HOSTS: "replica1,replica2"
+    REGISTRY_DATABASE_LOADBALANCING_HOSTS: "postgres-replica1,postgres-replica2"
 
 database:api-load-balancing-discovery:
   <<: *database-load-balancing
@@ -622,7 +618,7 @@ cli:schema-migration-dependency:
   tags:
     - gitlab-org-docker
   services:
-    - name: docker:27.2.0-dind
+    - name: docker:${DOCKER_VERSION}-dind
       alias: docker
   stage: integration
   variables:

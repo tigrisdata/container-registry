@@ -44,11 +44,11 @@ func (s *migrateCmdTestSuite) SetupSuite() {
 	s.T().Log("Setting up postgres")
 
 	pgCreds := pgCredentials{
-		DB:       "registry_dev",
-		User:     "registry",
-		Password: "registry_password",
+		DB:       "registry_test",
+		User:     "boryna",
+		Password: "Chleboslaw",
 	}
-	pgc, err := createPostgresContainer(s.T(), context.Background(), pgCreds)
+	pgc, err := createPostgresContainer(s.T(), context.Background())
 	require.NoError(s.T(), err)
 	s.pgCredentials = pgCreds
 
@@ -71,7 +71,7 @@ func (*migrateCmdTestSuite) SetupTest() {
 }
 
 func (s *migrateCmdTestSuite) TearDownTest() {
-	resetDBSchema(s.T(), s.db)
+	s.resetDBSchema()
 	resetGlobalVars()
 }
 
@@ -884,18 +884,21 @@ func captureStdOut(t *testing.T) func(...string) {
 	}
 }
 
-func createPostgresContainer(_ *testing.T, ctx context.Context, cfg pgCredentials) (*postgresContainer, error) {
+func createPostgresContainer(_ *testing.T, ctx context.Context) (*postgresContainer, error) {
 	pgCurrVersion := os.Getenv("PG_CURR_VERSION")
 	if pgCurrVersion == "" {
 		pgCurrVersion = "16"
 	}
-	pgContainer, err := postgres.Run(ctx, "postgres:"+pgCurrVersion+"-alpine",
-		postgres.WithDatabase(cfg.DB),
-		postgres.WithUsername(cfg.User),
-		postgres.WithPassword(cfg.Password),
+	pgContainer, err := postgres.Run(ctx, "registry.gitlab.com/gitlab-org/container-registry/postgresql-ci:"+pgCurrVersion,
 		testcontainers.WithWaitStrategy(
 			wait.ForLog("database system is ready to accept connections").
-				WithOccurrence(2).WithStartupTimeout(15*time.Second)),
+				WithOccurrence(2).WithStartupTimeout(15*time.Second),
+		),
+		testcontainers.WithEnv(
+			map[string]string{
+				"POSTGRES_ROLE": "primary",
+			},
+		),
 	)
 	if err != nil {
 		return nil, err
@@ -984,27 +987,27 @@ func resetGlobalVars() {
 	registry.Force = false
 }
 
-func resetDBSchema(t *testing.T, db *sql.DB) {
-	tx, err := db.Begin()
-	require.NoError(t, err, "Failed to begin transaction")
+func (s *migrateCmdTestSuite) resetDBSchema() {
+	tx, err := s.db.Begin()
+	require.NoError(s.T(), err, "Failed to begin transaction")
 
 	sqlCommands := []string{
 		"DROP SCHEMA public CASCADE;",
 		"CREATE SCHEMA public;",
-		"GRANT ALL ON SCHEMA public TO registry;",
+		fmt.Sprintf("GRANT ALL ON SCHEMA public TO %s;", s.pgCredentials.User),
 		"GRANT ALL ON SCHEMA public TO public;",
 		"COMMENT ON SCHEMA public IS 'standard public schema';",
 	}
 
 	for _, cmd := range sqlCommands {
 		_, err := tx.Exec(cmd)
-		require.NoError(t, err, "Failed to execute: %s", cmd)
+		require.NoError(s.T(), err, "Failed to execute: %s", cmd)
 	}
 
 	err = tx.Commit()
-	require.NoError(t, err, "Failed to commit transaction")
+	require.NoError(s.T(), err, "Failed to commit transaction")
 
-	t.Log("Database schema restored successfully!")
+	s.T().Log("Database schema restored successfully!")
 }
 
 func assertMigrationApplied(t *testing.T, db *sql.DB, preMigrations, postMigrations []string) {

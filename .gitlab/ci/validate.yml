@@ -37,9 +37,7 @@ semgrep-sast:
 # linux, brew, apt, snap, etc...). So the idea is to run the linting tools from
 # inside docker container both on the laptops of the developers and in the CI.
 docslint:
-  image: docker:27.2.0
-  services:
-    - docker:dind
+  extends: .docker
   stage: validate
   needs: []
   script:
@@ -193,19 +191,20 @@ build_smoketest:
   extends: .go-pg-version-matrix
   variables:
     FF_NETWORK_PER_BUILD: 1
-    POSTGRES_PASSWORD: "secret"
-    PGPASSWORD: "secret"
-    POSTGRES_DB: "registry"
+    APP_PASSWORD: Chleboslaw
+    POSTGRES_PASSWORD: Maryna
     REGISTRY_DATABASE_ENABLED: "true"
     REGISTRY_DATABASE_HOST: "db"
     REGISTRY_DATABASE_PORT: "5432"
-    REGISTRY_DATABASE_USER: "postgres"
-    REGISTRY_DATABASE_PASSWORD: "secret"
-    REGISTRY_DATABASE_DBNAME: "registry"
+    REGISTRY_DATABASE_USER: "boryna"
+    REGISTRY_DATABASE_PASSWORD: "Chleboslaw"
+    REGISTRY_DATABASE_DBNAME: "registry_test"
     REGISTRY_DATABASE_SSLMODE: "disable"
   services:
-    - name: postgres:${PG_VERSION}
+    - name: registry.gitlab.com/gitlab-org/container-registry/postgresql-ci:${PG_VERSION}
       alias: "db"
+      variables:
+        POSTGRES_ROLE: primary
   before_script:
     - "echo 'version: 0.1' > config.yml"
     - make binaries
@@ -215,18 +214,18 @@ database:schema-migrations:
   extends: .schema-migrations
   stage: validate
   script:
-    - ./bin/registry database migrate up config.yml
-    - ./bin/registry database migrate down --force config.yml
+    - PGPASSWORD=${APP_PASSWORD} ./bin/registry database migrate up config.yml
+    - PGPASSWORD=${APP_PASSWORD} ./bin/registry database migrate down --force config.yml
 
 database:schema-migrations:status:
   extends: .schema-migrations
   stage: validate
   script:
-    - ./bin/registry database migrate status -u config.yml | grep -qw 'false' || exit 1
-    - ./bin/registry database migrate up -n 2 config.yml
-    - ./bin/registry database migrate status --up-to-date config.yml | grep -qw 'false' || exit 1
-    - ./bin/registry database migrate up config.yml
-    - ./bin/registry database migrate status -u config.yml | grep -qw 'true' || exit 1
+    - PGPASSWORD=${APP_PASSWORD} ./bin/registry database migrate status -u config.yml | grep -qw 'false' || exit 1
+    - PGPASSWORD=${APP_PASSWORD} ./bin/registry database migrate up -n 2 config.yml
+    - PGPASSWORD=${APP_PASSWORD} ./bin/registry database migrate status --up-to-date config.yml | grep -qw 'false' || exit 1
+    - PGPASSWORD=${APP_PASSWORD} ./bin/registry database migrate up config.yml
+    - PGPASSWORD=${APP_PASSWORD} ./bin/registry database migrate status -u config.yml | grep -qw 'true' || exit 1
 
 database:structure-sql:
   extends: .schema-migrations
@@ -262,3 +261,15 @@ database:structure-sql:
         when: on_success
         paths:
           - registry/datastore/migrations/structure.sql
+
+build postgresql CI image:
+  stage: validate
+  extends: .docker
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - containers/postgres-cr/*
+        - .gitlab-ci.yml
+  script:
+    - make rebuild-ci-container-images
+    - make push-ci-container-images
