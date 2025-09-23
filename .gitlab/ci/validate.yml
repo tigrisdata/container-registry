@@ -266,10 +266,9 @@ build postgresql CI image:
   stage: validate
   extends: .docker
   rules:
+    # NOTE(prozlach): Continously rebuild the image to make sure we are always
+    # basing on the latest upstream image for bugfixes.
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-      changes:
-        - containers/postgres-cr/*
-        - .gitlab-ci.yml
   script:
     - make rebuild-ci-container-images
     - make push-ci-container-images
