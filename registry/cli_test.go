@@ -77,7 +77,7 @@ func (s *migrateCmdTestSuite) TearDownTest() {
 
 // Helper functions for creating migrations with standard patterns
 
-func createPreDeployMigration(id string, up, down []string, requiredPostDeploy []string) *migrations.Migration {
+func createPreDeployMigration(id string, up, down, requiredPostDeploy []string) *migrations.Migration {
 	return &migrations.Migration{
 		RequiredPostDeploy: requiredPostDeploy,
 		Migration: &migrate.Migration{
@@ -88,7 +88,7 @@ func createPreDeployMigration(id string, up, down []string, requiredPostDeploy [
 	}
 }
 
-func createPostDeployMigration(id string, up, down []string, requiredPreDeploy []string) *migrations.Migration {
+func createPostDeployMigration(id string, up, down, requiredPreDeploy []string) *migrations.Migration {
 	return &migrations.Migration{
 		RequiredPreDeploy: requiredPreDeploy,
 		Migration: &migrate.Migration{
@@ -100,7 +100,7 @@ func createPostDeployMigration(id string, up, down []string, requiredPreDeploy [
 }
 
 // Standard table creation migrations
-func createStandardPreDeployMigration(id string, table string) *migrations.Migration {
+func createStandardPreDeployMigration(id, table string) *migrations.Migration {
 	return createPreDeployMigration(
 		id,
 		[]string{fmt.Sprintf("CREATE TABLE %s (id BIGINT PRIMARY KEY)", table)},
@@ -133,14 +133,6 @@ func createStandardMigrationSet(numPre, numPost int) (preMigrations, postMigrati
 	return preMigrations, postMigrations
 }
 
-// Helper to convert ID to a table name
-func tableNameFromID(id string) string {
-	if id[0:1] == "0" {
-		return "migrations_test_" + id
-	}
-	return "migrations_test_" + id
-}
-
 // Helper to run up migrations and verify results
 func (s *migrateCmdTestSuite) runMigrateUp(preMigrations, postMigrations []*migrations.Migration, expectedPreIDs, expectedPostIDs []string) {
 	// Initialize migrations
@@ -160,32 +152,6 @@ func (s *migrateCmdTestSuite) runMigrateUp(preMigrations, postMigrations []*migr
 	assertMigrationApplied(s.T(), s.db, expectedPreIDs, expectedPostIDs)
 }
 
-// Helper to run down migrations
-func (s *migrateCmdTestSuite) runMigrateDown(preMigrations, postMigrations []*migrations.Migration, expectedPreIDs, expectedPostIDs []string) {
-	// Initialize migrations
-	migrations.AppendPreMigration(preMigrations...)
-	migrations.AppendPostMigration(postMigrations...)
-
-	// Start capturing stdout
-	checkStdoutContains := captureStdOut(s.T())
-
-	// Set force to bypass prompt
-	registry.Force = true
-
-	// Run the command
-	err := registry.MigrateDownCmd.RunE(nil, []string{s.configFilePath})
-	require.NoError(s.T(), err)
-
-	// Check output and migrations applied
-	if len(expectedPreIDs) > 0 {
-		checkStdoutContains(fmt.Sprintf("OK: applied %d pre-deployment migration(s)", len(expectedPreIDs)))
-	}
-	if len(expectedPostIDs) > 0 {
-		checkStdoutContains(fmt.Sprintf("OK: applied %d post-deployment migration(s)", len(expectedPostIDs)))
-	}
-	assertMigrationApplied(s.T(), s.db, expectedPreIDs, expectedPostIDs)
-}
-
 // Tests begin here
 
 func (s *migrateCmdTestSuite) Test_Up_Migrate_No_PreDeploy_or_PostDeploy() {
@@ -193,7 +159,7 @@ func (s *migrateCmdTestSuite) Test_Up_Migrate_No_PreDeploy_or_PostDeploy() {
 	err := registry.MigrateUpCmd.RunE(nil, []string{s.configFilePath})
 	require.NoError(s.T(), err)
 	checkStdoutContains("OK: applied 0 pre-deployment migration(s), 0 post-deployment migration(s) and 0 background migration(s)")
-	assertMigrationApplied(s.T(), s.db, []string{}, []string{})
+	assertMigrationApplied(s.T(), s.db, make([]string, 0), make([]string, 0))
 }
 
 func (s *migrateCmdTestSuite) Test_Up_Migrate_No_PreDeploy_or_PostDeploy_SkipPostDeploy() {
@@ -202,7 +168,7 @@ func (s *migrateCmdTestSuite) Test_Up_Migrate_No_PreDeploy_or_PostDeploy_SkipPos
 	err := registry.MigrateUpCmd.RunE(nil, []string{s.configFilePath})
 	require.NoError(s.T(), err)
 	checkStdoutContains("OK: applied 0 pre-deployment migration(s), 0 post-deployment migration(s) and 0 background migration(s)")
-	assertMigrationApplied(s.T(), s.db, []string{}, []string{})
+	assertMigrationApplied(s.T(), s.db, make([]string, 0), make([]string, 0))
 }
 
 func (s *migrateCmdTestSuite) Test_Up_Migrate_Independent_PreDeploy_No_PostDeploy() {
@@ -213,7 +179,7 @@ func (s *migrateCmdTestSuite) Test_Up_Migrate_Independent_PreDeploy_No_PostDeplo
 	err := registry.MigrateUpCmd.RunE(nil, []string{s.configFilePath})
 	require.NoError(s.T(), err)
 	checkStdoutContains("OK: applied 1 pre-deployment migration(s), 0 post-deployment migration(s) and 0 background migration(s)")
-	assertMigrationApplied(s.T(), s.db, []string{"1_create_test_table"}, []string{})
+	assertMigrationApplied(s.T(), s.db, []string{"1_create_test_table"}, make([]string, 0))
 }
 
 func (s *migrateCmdTestSuite) Test_Up_Migrate_Independent_PreDeploy_No_PostDeploy_SkipPostDeploy() {
@@ -225,7 +191,7 @@ func (s *migrateCmdTestSuite) Test_Up_Migrate_Independent_PreDeploy_No_PostDeplo
 	err := registry.MigrateUpCmd.RunE(nil, []string{s.configFilePath})
 	require.NoError(s.T(), err)
 	checkStdoutContains("OK: applied 1 pre-deployment migration(s), 0 post-deployment migration(s) and 0 background migration(s)")
-	assertMigrationApplied(s.T(), s.db, []string{"1_create_test_table"}, []string{})
+	assertMigrationApplied(s.T(), s.db, []string{"1_create_test_table"}, make([]string, 0))
 }
 
 func (s *migrateCmdTestSuite) Test_Up_Migrate_Independent_PostDeploy_No_PreDeploy() {
@@ -236,7 +202,7 @@ func (s *migrateCmdTestSuite) Test_Up_Migrate_Independent_PostDeploy_No_PreDeplo
 	err := registry.MigrateUpCmd.RunE(nil, []string{s.configFilePath})
 	require.NoError(s.T(), err)
 	checkStdoutContains("OK: applied 0 pre-deployment migration(s), 1 post-deployment migration(s) and 0 background migration(s)")
-	assertMigrationApplied(s.T(), s.db, []string{}, []string{"1_create_test_post_deploy_table"})
+	assertMigrationApplied(s.T(), s.db, make([]string, 0), []string{"1_create_test_post_deploy_table"})
 }
 
 func (s *migrateCmdTestSuite) Test_Up_Migrate_Independent_PostDeploy_No_PreDeploy_SkipPostDeploy() {
@@ -248,7 +214,7 @@ func (s *migrateCmdTestSuite) Test_Up_Migrate_Independent_PostDeploy_No_PreDeplo
 	err := registry.MigrateUpCmd.RunE(nil, []string{s.configFilePath})
 	require.NoError(s.T(), err)
 	checkStdoutContains("OK: applied 0 pre-deployment migration(s), 0 post-deployment migration(s) and 0 background migration(s)")
-	assertMigrationApplied(s.T(), s.db, []string{}, []string{})
+	assertMigrationApplied(s.T(), s.db, make([]string, 0), make([]string, 0))
 }
 
 func (s *migrateCmdTestSuite) Test_Up_Migrate_Independent_PreDeploy_And_Independent_PostDeploy() {
@@ -261,9 +227,11 @@ func (s *migrateCmdTestSuite) Test_Up_Migrate_Independent_PreDeploy_And_Independ
 func (s *migrateCmdTestSuite) Test_Up_Migrate_Independent_PreDeploy_And_Independent_PostDeploy_SkipPostDeploy() {
 	registry.SkipPostDeployment = true
 	preMigrations, postMigrations := createStandardMigrationSet(1, 1)
-	s.runMigrateUp(preMigrations, postMigrations,
+	s.runMigrateUp(
+		preMigrations, postMigrations,
 		[]string{"1_create_test_table"},
-		[]string{})
+		make([]string, 0),
+	)
 }
 
 func (s *migrateCmdTestSuite) Test_Up_Migrate_Dependent_PreDeploy_on_PostDeploy() {
@@ -304,7 +272,7 @@ func (s *migrateCmdTestSuite) Test_Up_Migrate_Dependent_PreDeploy_on_PostDeploy_
 	require.Error(s.T(), err)
 	require.ErrorContains(s.T(), err, "required post-deploy schema migration 1_create_test_post_deploy_table not yet applied and can not be skipped")
 
-	assertMigrationApplied(s.T(), s.db, []string{}, []string{})
+	assertMigrationApplied(s.T(), s.db, make([]string, 0), make([]string, 0))
 }
 
 func (s *migrateCmdTestSuite) Test_Up_Migrate_Dependent_PostDeploy_on_PreDeploy() {
@@ -343,7 +311,7 @@ func (s *migrateCmdTestSuite) Test_Up_Migrate_Dependent_PostDeploy_on_PreDeploy_
 	err := registry.MigrateUpCmd.RunE(nil, []string{s.configFilePath})
 	require.NoError(s.T(), err)
 	checkStdoutContains("OK: applied 1 pre-deployment migration(s), 0 post-deployment migration(s) and 0 background migration(s)")
-	assertMigrationApplied(s.T(), s.db, []string{"1_create_test_table"}, []string{})
+	assertMigrationApplied(s.T(), s.db, []string{"1_create_test_table"}, make([]string, 0))
 }
 
 func (s *migrateCmdTestSuite) Test_Up_Migrate_PostDeploy_Dependency_DoesNotExist() {
@@ -362,7 +330,7 @@ func (s *migrateCmdTestSuite) Test_Up_Migrate_PostDeploy_Dependency_DoesNotExist
 	require.Error(s.T(), err)
 	require.ErrorContains(s.T(), err, "pre-deploy migration 2_create_test_table, does not exist in migration source")
 
-	assertMigrationApplied(s.T(), s.db, []string{"1_create_test_table"}, []string{})
+	assertMigrationApplied(s.T(), s.db, []string{"1_create_test_table"}, make([]string, 0))
 }
 
 func (s *migrateCmdTestSuite) Test_Up_Migrate_PostDeploy_Dependency_DoesNotExist_SkipPostDeploy() {
@@ -383,7 +351,7 @@ func (s *migrateCmdTestSuite) Test_Up_Migrate_PostDeploy_Dependency_DoesNotExist
 	require.NoError(s.T(), err)
 
 	checkStdoutContains("OK: applied 1 pre-deployment migration(s), 0 post-deployment migration(s) and 0 background migration(s)")
-	assertMigrationApplied(s.T(), s.db, []string{"1_create_test_table"}, []string{})
+	assertMigrationApplied(s.T(), s.db, []string{"1_create_test_table"}, make([]string, 0))
 }
 
 func (s *migrateCmdTestSuite) Test_Up_Migrate_PreDeploy_Dependency_DoesNotExist() {
@@ -403,7 +371,7 @@ func (s *migrateCmdTestSuite) Test_Up_Migrate_PreDeploy_Dependency_DoesNotExist(
 	require.Error(s.T(), err)
 	require.ErrorContains(s.T(), err, "post-deploy migration 2_create_test_post_deploy_table does not exist in migration source")
 
-	assertMigrationApplied(s.T(), s.db, []string{}, []string{})
+	assertMigrationApplied(s.T(), s.db, make([]string, 0), make([]string, 0))
 }
 
 func (s *migrateCmdTestSuite) Test_Up_Migrate_2_PreDeploy_1_Dependent_on_PostDeploy() {
@@ -452,7 +420,7 @@ func (s *migrateCmdTestSuite) Test_Up_Migrate_2_PreDeploy_1_Dependent_on_PostDep
 	require.Error(s.T(), err)
 	require.ErrorContains(s.T(), err, "required post-deploy schema migration 1_create_test_post_deploy_table not yet applied and can not be skipped")
 
-	assertMigrationApplied(s.T(), s.db, []string{"1_create_test_table"}, []string{})
+	assertMigrationApplied(s.T(), s.db, []string{"1_create_test_table"}, make([]string, 0))
 }
 
 func (s *migrateCmdTestSuite) Test_Up_Migrate_2_PostDeploy_1_Dependent_on_PreDeploy() {
@@ -499,7 +467,7 @@ func (s *migrateCmdTestSuite) Test_Up_Migrate_2_PostDeploy_1_Dependent_on_PreDep
 	require.NoError(s.T(), err)
 
 	checkStdoutContains("OK: applied 1 pre-deployment migration(s), 0 post-deployment migration(s) and 0 background migration(s)")
-	assertMigrationApplied(s.T(), s.db, []string{"1_create_test_table"}, []string{})
+	assertMigrationApplied(s.T(), s.db, []string{"1_create_test_table"}, make([]string, 0))
 }
 
 func (s *migrateCmdTestSuite) Test_Up_Migrate_2_PreDeploy_1_Illogically_Depends_on_PostDeploy() {
@@ -604,7 +572,7 @@ func (s *migrateCmdTestSuite) Test_Up_Migrate_Ordered_Cyclical_Dependency_SkipPo
 	err := registry.MigrateUpCmd.RunE(nil, []string{s.configFilePath})
 	require.Error(s.T(), err)
 	require.ErrorContains(s.T(), err, "required post-deploy schema migration 1_create_test_post_deploy_table not yet applied and can not be skipped")
-	assertMigrationApplied(s.T(), s.db, []string{}, []string{})
+	assertMigrationApplied(s.T(), s.db, make([]string, 0), make([]string, 0))
 }
 
 func (s *migrateCmdTestSuite) Test_UpN_Migrate_2Independent_PreDeploy_And_3Independent_PostDeploy() {
@@ -681,7 +649,7 @@ func (s *migrateCmdTestSuite) Test_UpN_Migrate_2PostDeploy_Avoid_PreDeploy() {
 	require.NoError(s.T(), err)
 
 	checkStdoutContains("OK: applied 0 pre-deployment migration(s), 2 post-deployment migration(s) and 0 background migration(s)")
-	assertMigrationApplied(s.T(), s.db, []string{},
+	assertMigrationApplied(s.T(), s.db, make([]string, 0),
 		[]string{"1_create_test_post_deploy_table", "2_create_test_post_deploy_table"})
 }
 
@@ -699,7 +667,7 @@ func (s *migrateCmdTestSuite) Test_UpN_Migrate_2PreDeploy_Avoid_PostDeploy() {
 
 	checkStdoutContains("OK: applied 2 pre-deployment migration(s), 0 post-deployment migration(s) and 0 background migration(s)")
 	assertMigrationApplied(s.T(), s.db,
-		[]string{"1_create_test_table", "2_create_test_table"}, []string{})
+		[]string{"1_create_test_table", "2_create_test_table"}, make([]string, 0))
 }
 
 func (s *migrateCmdTestSuite) Test_Down_Migrate_NoExisitingMigration() {
@@ -729,7 +697,7 @@ func (s *migrateCmdTestSuite) Test_Down_Migrate_PreDeploy_And_PostDeploy() {
 	require.NoError(s.T(), err)
 
 	checkStdoutContains("OK: applied 3 post-deployment migration(s)", "OK: applied 3 pre-deployment migration(s)")
-	assertMigrationApplied(s.T(), s.db, []string{}, []string{})
+	assertMigrationApplied(s.T(), s.db, make([]string, 0), make([]string, 0))
 }
 
 func (s *migrateCmdTestSuite) Test_Down_Migrate_PreDeploy_And_PostDeploy_SkipPostDeploy() {
@@ -751,7 +719,7 @@ func (s *migrateCmdTestSuite) Test_Down_Migrate_PreDeploy_And_PostDeploy_SkipPos
 	require.NoError(s.T(), err)
 
 	checkStdoutContains("OK: applied 3 pre-deployment migration(s)")
-	assertMigrationApplied(s.T(), s.db, []string{},
+	assertMigrationApplied(s.T(), s.db, make([]string, 0),
 		[]string{"1_create_test_post_deploy_table", "2_create_test_post_deploy_table", "3_create_test_post_deploy_table"})
 }
 
@@ -1024,6 +992,7 @@ func assertMigrationApplied(t *testing.T, db *sql.DB, preMigrations, postMigrati
 			}
 			require.NoError(t, err)
 		}
+		// nolint: revive // defer
 		defer rows.Close()
 
 		for rows.Next() {
