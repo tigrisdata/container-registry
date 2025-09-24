@@ -4,6 +4,8 @@ ROOTDIR=$(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 GOLANGCI_VERSION ?= v2.4.0
 DOCSLINT_VERSION ?= registry.gitlab.com/gitlab-org/technical-writing/docs-gitlab-com/lint-markdown:alpine-3.21-vale-3.11.2-markdownlint2-0.17.2-lychee-0.18.1
 
+DOCKER_IMAGE_REGISTRY ?= registry.gitlab.com/gitlab-org/container-registry
+
 # Used to populate version variable in main package.
 VERSION?=$(shell git describe --tags --match 'v[0-9]*' --dirty='.m' --always)
 REVISION?=$(shell git rev-parse HEAD)$(shell if ! git diff --no-ext-diff --quiet --exit-code; then echo .m; fi)
@@ -67,7 +69,7 @@ check: lint
 
 lint: ## run golangci-lint, with defaults
 	@echo "$(WHALE) $@"
-	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${GOLANGCI_VERSION} run
+	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${GOLANGCI_VERSION} run 
 
 lint-docs: ## run golangci-lint, with defaults
 	@#There are few issues with installing the tooling natively:
@@ -157,3 +159,34 @@ release-dry-run: release-prep
 release: release-prep
 	@echo "This will generate and push a changelog update and a new tag, are you sure? [y/N] " && read ans && [ $${ans:-N} = y ]
 	@npx semantic-release --no-ci
+
+export PG_VERSIONS=$(shell egrep -E 'PG_(PREV|CURR|NEXT)_VERSION: ' .gitlab-ci.yml | cut -d\" -f 2)
+
+.PHONY: rebuild-ci-container-images
+rebuild-ci-container-images:
+	@for PG_VERSION in $$PG_VERSIONS; \
+	do \
+		docker build --no-cache \
+			--build-arg PG_VERSION=$$PG_VERSION \
+			-t ${DOCKER_IMAGE_REGISTRY}/postgresql-ci:$${PG_VERSION}  \
+			containers/postgres-cr/; \
+	done
+
+.PHONY: push-ci-container-images
+push-ci-container-images:
+	@for PG_VERSION in $$PG_VERSIONS; \
+	do \
+		docker push ${DOCKER_IMAGE_REGISTRY}/postgresql-ci:$${PG_VERSION}; \
+	done
+
+POSTGRES_COMPOSE_FILE := containers/compose-postgres.yml
+
+.PHONY: clean-psql-stack
+clean-psql-stack:
+	docker compose -f $(POSTGRES_COMPOSE_FILE) down -v --rmi local --remove-orphans
+	docker compose -f $(POSTGRES_COMPOSE_FILE) rm -fsv
+	docker volume rm -f $$(docker volume ls -q | grep postgres) 2>/dev/null || true
+
+.PHONY: up-psql-stack
+up-psql-stack:
+	docker compose -f $(POSTGRES_COMPOSE_FILE) up --force-recreate
