@@ -156,6 +156,13 @@ func (c *RowCountCollector) registerQueries() {
 		Args:        nil,
 	})
 
+	c.RegisterQuery(RowCountQuery{
+		Name:        "gc_manifest_review_queue",
+		Description: "Number of rows in gc_manifest_review_queue table",
+		Query:       "SELECT COUNT(*) FROM gc_manifest_review_queue",
+		Args:        nil,
+	})
+
 	// Migration count queries for tracking applied migrations
 	c.RegisterQuery(RowCountQuery{
 		Name:        "applied_pre_migrations",
