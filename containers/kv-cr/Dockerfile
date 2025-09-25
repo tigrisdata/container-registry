@@ -1,6 +1,7 @@
 # check=skip=SecretsUsedInArgOrEnv
 
-FROM redis:bookworm 
+ARG KV_TYPE=UNSET
+FROM ${KV_TYPE}:bookworm 
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
