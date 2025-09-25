@@ -50,10 +50,10 @@ See [Product Development Timeline](https://about.gitlab.com/handbook/engineering
 
 ### 2. Release
 
-1. [ ] Run the `make release-dry-run` command.
-1. [ ] Review each MR in the new release and check if the ~"cannot-rollback" or the ~"high-risk-change" label has been applied. If any MR contains the label:
-   1. [ ] Ensure that _no_ code changes that rely on the ~"cannot-rollback" MRg are included in this release. These should be separated into two consecutive releases.
-1. [ ] Run the `make release` command. A new tag should have been created and pushed.
+1. [ ] Trigger the `release:prepare` job in the `release` stage on the `master` branch.
+1. [ ] Review the release MR created during the step above. For each change in the new release, check if the ~"cannot-rollback" or the ~"high-risk-change" label has been applied. If any MR contains the label:
+   1. [ ] Ensure that _no_ code changes that rely on the ~"cannot-rollback" MRs are included in this release. These should be separated into two consecutive releases.
+1. [ ] Get the release MR approved and merged. The `release:tag` job detects the updated changelog and creates a new annotated tag.
 
 <details>
 <summary><b>Documentation/resources</b></summary>
