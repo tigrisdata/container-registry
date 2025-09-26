@@ -171,6 +171,9 @@ rebuild-ci-container-images:
 			-t ${DOCKER_IMAGE_REGISTRY}/postgresql-ci:$${PG_VERSION}  \
 			containers/postgres-cr/; \
 	done
+	docker build --no-cache \
+		-t ${DOCKER_IMAGE_REGISTRY}/redis-ci:bookworm  \
+		containers/redis-cr/; \
 
 .PHONY: push-ci-container-images
 push-ci-container-images:
@@ -178,6 +181,7 @@ push-ci-container-images:
 	do \
 		docker push ${DOCKER_IMAGE_REGISTRY}/postgresql-ci:$${PG_VERSION}; \
 	done
+	docker push ${DOCKER_IMAGE_REGISTRY}/redis-ci:bookworm; \
 
 POSTGRES_COMPOSE_FILE := containers/compose-postgres.yml
 
@@ -190,3 +194,25 @@ clean-psql-stack:
 .PHONY: up-psql-stack
 up-psql-stack:
 	docker compose -f $(POSTGRES_COMPOSE_FILE) up --force-recreate
+
+SENTINEL_NOAUTH_COMPOSE_FILE := containers/compose-redis-sentinel_noauth.yml
+
+.PHONY: clean-sentinelnoauth-stack
+clean-sentinelnoauth-stack:
+	docker compose -f $(SENTINEL_NOAUTH_COMPOSE_FILE) down -v --rmi local --remove-orphans
+	docker compose -f $(SENTINEL_NOAUTH_COMPOSE_FILE) rm -fsv
+
+.PHONY: up-sentinelnoauth-stack
+up-sentinelnoauth-stack:
+	docker compose -f $(SENTINEL_NOAUTH_COMPOSE_FILE) up --force-recreate
+
+REDISCLUSTER_NOAUTH_COMPOSE_FILE := containers/compose-redis-cluster_noauth.yml
+
+.PHONY: clean-redisclusternoauth-stack
+clean-redisclusternoauth-stack:
+	docker compose -f $(REDISCLUSTER_NOAUTH_COMPOSE_FILE) down -v --rmi local --remove-orphans
+	docker compose -f $(REDISCLUSTER_NOAUTH_COMPOSE_FILE) rm -fsv
+
+.PHONY: up-redisclusternoauth-stack
+up-redisclusternoauth-stack:
+	docker compose -f $(REDISCLUSTER_NOAUTH_COMPOSE_FILE) up --force-recreate
