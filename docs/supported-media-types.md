@@ -62,6 +62,10 @@ Media type IDs are currently implemented with `SMALLINT`, while it's unlikely to
 | `application/vnd.docker.distribution.manifest.v1+prettyjws`               |
 | `application/vnd.docker.distribution.manifest.v1+json`                    |
 | `application/vnd.docker.distribution.manifest.list.v2+json`               |
+| `application/vnd.docker.compose.config.empty.v1+json`                     |
+| `application/vnd.docker.compose.envfile`                                  |
+| `application/vnd.docker.compose.file+yaml`                                |
+| `application/vnd.docker.compose.project`                                  |
 | `application/vnd.docker.container.image.v1+json`                          |
 | `application/vnd.docker.container.image.rootfs.diff+x-gtar`               |
 | `application/vnd.devcontainers.layer.v1+tar`                              |
