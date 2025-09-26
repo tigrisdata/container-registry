@@ -80,7 +80,7 @@ var BBMProcess = Feature{
 // https://gitlab.com/gitlab-org/container-registry/-/blob/master/docs/spec/gitlab/lockfiles.md
 // for more information.
 var EnforceLockfiles = Feature{
-	defaultEnabled: false,
+	defaultEnabled: true,
 	EnvVariable:    "REGISTRY_FF_ENFORCE_LOCKFILES",
 }
 
@@ -97,6 +97,7 @@ var all = []Feature{
 	DualCacheWrite,
 	DualCacheReadFromStandBy,
 	DualCacheSwapInstances,
+	EnforceLockfiles,
 }
 
 // KnownEnvVar evaluates whether the input string matches the name of one of the known feature flag env vars.
