@@ -172,8 +172,13 @@ rebuild-ci-container-images:
 			containers/postgres-cr/; \
 	done
 	docker build --no-cache \
-		-t ${DOCKER_IMAGE_REGISTRY}/redis-ci:bookworm  \
-		containers/redis-cr/; \
+			--build-arg KV_TYPE=redis \
+		-t ${DOCKER_IMAGE_REGISTRY}/kv-ci-redis:bookworm  \
+		containers/kv-cr/; \
+	docker build --no-cache \
+			--build-arg KV_TYPE=valkey/valkey \
+		-t ${DOCKER_IMAGE_REGISTRY}/kv-ci-valkey:bookworm  \
+		containers/kv-cr/; \
 
 .PHONY: push-ci-container-images
 push-ci-container-images:
@@ -181,38 +186,59 @@ push-ci-container-images:
 	do \
 		docker push ${DOCKER_IMAGE_REGISTRY}/postgresql-ci:$${PG_VERSION}; \
 	done
-	docker push ${DOCKER_IMAGE_REGISTRY}/redis-ci:bookworm; \
+	docker push ${DOCKER_IMAGE_REGISTRY}/kv-ci-valkey:bookworm;
+	docker push ${DOCKER_IMAGE_REGISTRY}/kv-ci-redis:bookworm;
 
 POSTGRES_COMPOSE_FILE := containers/compose-postgres.yml
 
-.PHONY: clean-psql-stack
-clean-psql-stack:
+.PHONY: psql-stack-clean
+psql-stack-clean:
 	docker compose -f $(POSTGRES_COMPOSE_FILE) down -v --rmi local --remove-orphans
 	docker compose -f $(POSTGRES_COMPOSE_FILE) rm -fsv
 	docker volume rm -f $$(docker volume ls -q | grep postgres) 2>/dev/null || true
 
-.PHONY: up-psql-stack
-up-psql-stack:
+.PHONY: psql-stack-up
+psql-stack-up:
 	docker compose -f $(POSTGRES_COMPOSE_FILE) up --force-recreate
 
-SENTINEL_NOAUTH_COMPOSE_FILE := containers/compose-redis-sentinel_noauth.yml
+REDISSENTINEL_COMPOSE_FILE := containers/compose-kv-redis-sentinel_noauth.yml
+VALKEYSENTINEL_COMPOSE_FILE := containers/compose-kv-valkey-sentinel_noauth.yml
 
-.PHONY: clean-sentinelnoauth-stack
-clean-sentinelnoauth-stack:
-	docker compose -f $(SENTINEL_NOAUTH_COMPOSE_FILE) down -v --rmi local --remove-orphans
-	docker compose -f $(SENTINEL_NOAUTH_COMPOSE_FILE) rm -fsv
+.PHONY: kv-sentinel-valkey-clean
+kv-sentinel-valkey-clean:
+	docker compose -f $(VALKEYSENTINEL_COMPOSE_FILE) down -v --rmi local --remove-orphans
+	docker compose -f $(VALKEYSENTINEL_COMPOSE_FILE) rm -fsv
 
-.PHONY: up-sentinelnoauth-stack
-up-sentinelnoauth-stack:
-	docker compose -f $(SENTINEL_NOAUTH_COMPOSE_FILE) up --force-recreate
+.PHONY: kv-sentinel-valkey-up
+kv-sentinel-valkey-up:
+	docker compose -f $(VALKEYSENTINEL_COMPOSE_FILE) up --force-recreate
 
-REDISCLUSTER_NOAUTH_COMPOSE_FILE := containers/compose-redis-cluster_noauth.yml
+.PHONY: kv-sentinel-redis-clean
+kv-sentinel-redis-clean:
+	docker compose -f $(REDISSENTINEL_COMPOSE_FILE) down -v --rmi local --remove-orphans
+	docker compose -f $(REDISSENTINEL_COMPOSE_FILE) rm -fsv
 
-.PHONY: clean-redisclusternoauth-stack
-clean-redisclusternoauth-stack:
-	docker compose -f $(REDISCLUSTER_NOAUTH_COMPOSE_FILE) down -v --rmi local --remove-orphans
-	docker compose -f $(REDISCLUSTER_NOAUTH_COMPOSE_FILE) rm -fsv
+.PHONY: kv-sentinel-redis-up
+kv-sentinel-redis-up:
+	docker compose -f $(REDISSENTINEL_COMPOSE_FILE) up --force-recreate
 
-.PHONY: up-redisclusternoauth-stack
-up-redisclusternoauth-stack:
-	docker compose -f $(REDISCLUSTER_NOAUTH_COMPOSE_FILE) up --force-recreate
+REDISCLUSTER_COMPOSE_FILE := containers/compose-kv-redis-cluster_noauth.yml
+VALKEYCLUSTER_COMPOSE_FILE := containers/compose-kv-valkey-cluster_noauth.yml
+
+.PHONY: kv-cluster-redis-clean
+kv-cluster-redis-clean:
+	docker compose -f $(REDISCLUSTER_COMPOSE_FILE) down -v --rmi local --remove-orphans
+	docker compose -f $(REDISCLUSTER_COMPOSE_FILE) rm -fsv
+
+.PHONY: kv-cluster-redis-up
+kv-cluster-redis-up:
+	docker compose -f $(REDISCLUSTER_COMPOSE_FILE) up --force-recreate
+
+.PHONY: kv-cluster-valkey-clean
+kv-cluster-valkey-clean:
+	docker compose -f $(VALKEYCLUSTER_COMPOSE_FILE) down -v --rmi local --remove-orphans
+	docker compose -f $(VALKEYCLUSTER_COMPOSE_FILE) rm -fsv
+
+.PHONY: kv-cluster-valkey-up
+kv-cluster-valkey-up:
+	docker compose -f $(VALKEYCLUSTER_COMPOSE_FILE) up --force-recreate
