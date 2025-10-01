@@ -54,6 +54,7 @@ Media type IDs are currently implemented with `SMALLINT`, while it's unlikely to
 | `application/vnd.gardener.cloud.cnudie.component-descriptor.v2+yaml+tar`  |
 | `application/vnd.gardener.cloud.cnudie.component-descriptor.v2+json`      |
 | `application/vnd.dsse.envelope.v1+json`                                   |
+| `application/vnd.docker.attestation.manifest.v1+json`                     |
 | `application/vnd.docker.plugin.v1+json`                                   |
 | `application/vnd.docker.image.rootfs.foreign.diff.tar.gzip`               |
 | `application/vnd.docker.image.rootfs.diff.tar.gzip`                       |
