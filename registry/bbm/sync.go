@@ -199,15 +199,16 @@ func (jw *SyncWorker) runImpl(ctx context.Context) error {
 			// nolint: revive // max-control-nesting
 			if job != nil {
 				l := jw.logger.WithFields(log.Fields{
-					jobIDKey:        job.ID,
-					jobBBMIDKey:     job.BBMID,
-					jobNameKey:      job.JobName,
-					jobStartIDKey:   job.StartID,
-					jobEndIDKey:     job.EndID,
-					jobBatchSizeKey: job.BatchSize,
-					jobStatusKey:    job.Status.String(),
-					jobColumnKey:    job.PaginationColumn,
-					jobTableKey:     job.PaginationTable,
+					jobIDKey:           job.ID,
+					jobBBMIDKey:        job.BBMID,
+					jobNameKey:         job.JobName,
+					jobStartIDKey:      job.StartID,
+					jobEndIDKey:        job.EndID,
+					jobBatchSizeKey:    job.BatchSize,
+					jobStatusKey:       job.Status.String(),
+					jobColumnKey:       job.PaginationColumn,
+					jobTableKey:        job.PaginationTable,
+					jobBatchingTypeKey: job.BatchingStrategy.Val(),
 				})
 
 				l.Info("found job, starting execution")
@@ -265,18 +266,11 @@ func (jw *SyncWorker) FindJob(ctx context.Context, bbmStore datastore.Background
 		}
 
 		if bbm != nil {
-			// Update status to running if migration was left in failed state but no longer has any failed migration jobs.
-			if job == nil {
-				jw.logger.Info("found failed migration without failed jobs, setting it back to running")
-				bbm.ErrorCode = models.NullErrCode
-				bbm.Status = models.BackgroundMigrationRunning
-
+			if shouldResetFailedMigration(bbm, job, jw.logger) {
 				// nolint: revive // max-control-nesting
-				if err = bbmStore.UpdateStatus(ctx, bbm); err != nil {
-					jw.logger.WithError(err).Error("failed to update status of background migration")
-					return nil, fmt.Errorf("failed to update status of background migration: %w", err)
+				if err = resetMigrationToRunning(ctx, bbm, bbmStore, jw.logger); err != nil {
+					return nil, err
 				}
-				jw.logger.Info("updated migration status, continuing to look for other jobs")
 				continue
 			}
 			enrichJobWithBBMAttributes(job, bbm)
@@ -290,7 +284,7 @@ func (jw *SyncWorker) FindJob(ctx context.Context, bbmStore datastore.Background
 		}
 		if bbm != nil {
 			if job == nil {
-				jw.logger.Info("found running/active migration without jobs, setting it to finished")
+				jw.logger.Info("found running/active migration without elligiblejobs, setting it to finished")
 				bbm.ErrorCode = models.NullErrCode
 				bbm.Status = models.BackgroundMigrationFinished
 				// nolint: revive // max-control-nesting
@@ -323,21 +317,38 @@ func findRunningOrActive(ctx context.Context, bbmStore datastore.BackgroundMigra
 	}
 
 	if bbm == nil {
-		// No more background migrations to process, exit loop
+		// No more background migrations to process.
 		return nil, nil, nil
 	}
 
-	// Prioritize failed jobs if any before considering new jobs
-	job, err = bbmStore.FindJobWithStatus(ctx, bbm.ID, models.BackgroundMigrationFailed)
-	if err != nil {
-		return nil, nil, err
-	}
+	if bbm.BatchingStrategy == models.NullBatchingBBMStrategy {
+		// Check if there are still NULL values to process
+		isRemainingNullValues, err := isRemainingNullValues(ctx, bbmStore, bbm)
+		if err != nil {
+			return bbm, nil, err
+		}
 
-	if job == nil {
-		// If no failed jobs are found, look for new jobs
-		job, err = findNewJob(ctx, bbmStore, bbm)
+		if !isRemainingNullValues {
+			return bbm, nil, nil
+		}
+		// Create a new job to process the next batch of NULL values
+		job, err = createNullColumnJob(ctx, bbmStore, bbm)
+		if err != nil {
+			return bbm, nil, err
+		}
+	} else {
+		// Prioritize failed jobs if any before considering new jobs
+		job, err = bbmStore.FindJobWithStatus(ctx, bbm.ID, models.BackgroundMigrationFailed)
 		if err != nil {
 			return nil, nil, err
+		}
+
+		if job == nil {
+			// If no failed jobs are found, look for new jobs
+			job, err = findNewJob(ctx, bbmStore, bbm)
+			if err != nil {
+				return nil, nil, err
+			}
 		}
 	}
 
@@ -415,10 +426,42 @@ func enrichJobWithBBMAttributes(job *models.BackgroundMigrationJob, bbm *models.
 		job.PaginationTable = bbm.TargetTable
 		job.PaginationColumn = bbm.TargetColumn
 		job.BatchSize = bbm.BatchSize
+		job.BatchingStrategy = bbm.BatchingStrategy
 	}
 }
 
 // FinishedMigrationCount returns the count of background migrations completed in the last run.
 func (jw *SyncWorker) FinishedMigrationCount() int {
 	return jw.lastRunCompletedBBMs
+}
+
+// shouldResetFailedMigration determines if a failed migration should be reset to running
+func shouldResetFailedMigration(bbm *models.BackgroundMigration, job *models.BackgroundMigrationJob, logger log.Logger) bool {
+	if bbm.BatchingStrategy != models.NullBatchingBBMStrategy && job != nil {
+		return false
+	}
+
+	if bbm.BatchingStrategy == models.NullBatchingBBMStrategy {
+		// failed jobs in null traversals are not retry-able because they have no (start-end) markers,
+		// instead a new job is run that will automatically contain the failed range.
+		logger.Info("found failed null strategy migration, setting it back to running")
+	} else if job == nil {
+		logger.Info("found failed migration without failed jobs, setting it back to running")
+	}
+
+	return true
+}
+
+// resetMigrationToRunning resets a migration status from failed to running
+func resetMigrationToRunning(ctx context.Context, bbm *models.BackgroundMigration, bbmStore datastore.BackgroundMigrationStore, logger log.Logger) error {
+	bbm.ErrorCode = models.NullErrCode
+	bbm.Status = models.BackgroundMigrationRunning
+
+	if err := bbmStore.UpdateStatus(ctx, bbm); err != nil {
+		logger.WithError(err).Error("failed to update status of background migration")
+		return fmt.Errorf("failed to update status of background migration: %w", err)
+	}
+
+	logger.Info("updated migration status, continuing to look for other jobs")
+	return nil
 }

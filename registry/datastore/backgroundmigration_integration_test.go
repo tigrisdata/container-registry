@@ -832,3 +832,39 @@ func TestBackgroundMigrationStore_GetPendingWALCount(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, -1, count)
 }
+
+func TestBackgroundMigrationStore_HasNullValues_SimpleTable(t *testing.T) {
+	// Create a temporary table in the default schema (no schema prefix in identifier)
+	_, err := suite.db.Exec(`CREATE TABLE IF NOT EXISTS tmp_nulltest (id INT PRIMARY KEY, val INT NULL)`)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, _ = suite.db.Exec(`DROP TABLE IF EXISTS tmp_nulltest`)
+	})
+
+	// Insert rows with one NULL
+	_, err = suite.db.Exec(`INSERT INTO tmp_nulltest (id, val) VALUES (1, NULL), (2, 5)`)
+	require.NoError(t, err)
+
+	s := datastore.NewBackgroundMigrationStore(suite.db)
+
+	// Expect true when NULL exists
+	hasNulls, err := s.HasNullValues(suite.ctx, "tmp_nulltest", "val")
+	require.NoError(t, err)
+	require.True(t, hasNulls)
+
+	// Flip NULL to non-null
+	_, err = suite.db.Exec(`UPDATE tmp_nulltest SET val = 1 WHERE id = 1`)
+	require.NoError(t, err)
+
+	// Expect false when no NULL remains
+	hasNulls, err = s.HasNullValues(suite.ctx, "tmp_nulltest", "val")
+	require.NoError(t, err)
+	require.False(t, hasNulls)
+}
+
+func TestBackgroundMigrationStore_HasNullValues_InvalidIdentifier(t *testing.T) {
+	s := datastore.NewBackgroundMigrationStore(suite.db)
+	// Table name with a quote should be rejected by identifier validation
+	_, err := s.HasNullValues(suite.ctx, `bad"name`, "val")
+	require.Error(t, err)
+}
