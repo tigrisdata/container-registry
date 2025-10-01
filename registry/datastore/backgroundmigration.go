@@ -76,6 +76,8 @@ type BackgroundMigrationStore interface {
 	// GetPendingWALCount returns the number of WAL records that are pending archival.
 	// This value is a good indicator of WAL pressure when compared to a threshold.
 	GetPendingWALCount(ctx context.Context) (int, error)
+	// HasNullValues returns true if a table's column contains NULL values
+	HasNullValues(ctx context.Context, table, column string) (bool, error)
 }
 
 // NewBackgroundMigrationStore builds a new backgroundMigrationStore.
@@ -211,7 +213,8 @@ func (bms *backgroundMigrationStore) FindNext(ctx context.Context) (*models.Back
 			job_signature_name,
 			table_name,
 			column_name,
-			failure_error_code
+			failure_error_code,
+			batching_strategy
 		FROM
 			batched_background_migrations
 		WHERE
@@ -295,7 +298,8 @@ func (bms *backgroundMigrationStore) FindById(ctx context.Context, id int) (*mod
 			job_signature_name,
 			table_name,
 			column_name,
-			failure_error_code
+			failure_error_code,
+			batching_strategy
 		FROM
 			batched_background_migrations
 		WHERE
@@ -319,7 +323,8 @@ func (bms *backgroundMigrationStore) FindNextByStatus(ctx context.Context, statu
 			job_signature_name,
 			table_name,
 			column_name,
-			failure_error_code
+			failure_error_code,
+			batching_strategy
 		FROM
 			batched_background_migrations
 		WHERE
@@ -347,7 +352,8 @@ func (bms *backgroundMigrationStore) FindByName(ctx context.Context, name string
 			job_signature_name,
 			table_name,
 			column_name,
-			failure_error_code
+			failure_error_code,
+			batching_strategy
 		FROM
 			batched_background_migrations
 		WHERE
@@ -471,7 +477,8 @@ func (bms *backgroundMigrationStore) FindAll(ctx context.Context) (models.Backgr
 			job_signature_name,
 			table_name,
 			column_name,
-			failure_error_code
+			failure_error_code,
+			batching_strategy
 		FROM
 			batched_background_migrations
 		ORDER BY
@@ -667,6 +674,38 @@ func (bms *backgroundMigrationStore) CountByStatus(ctx context.Context) (map[mod
 	return statusCount, nil
 }
 
+// HasNullValues checks if there are any NULL values in the specified column
+// The Column must be indexed. Without an index on the column being checked, this query could scan the entire table until it finds the first NULL value.
+func (bms *backgroundMigrationStore) HasNullValues(ctx context.Context, table, column string) (bool, error) {
+	// Parse optional schema-qualified table name
+	var schemaName, tableName string
+	parts := strings.Split(table, ".")
+	if len(parts) == 2 {
+		schemaName, tableName = parts[0], parts[1]
+	} else {
+		schemaName, tableName = "public", table
+	}
+
+	// Quote identifiers using a minimal quoting helper to avoid injection and handle case sensitivity
+	qualified := fmt.Sprintf("%s.%s", pqQuoteIdent(schemaName), pqQuoteIdent(tableName))
+	col := pqQuoteIdent(column)
+
+	defer metrics.InstrumentQuery("bbm_has_null_values")()
+
+	query := fmt.Sprintf("SELECT EXISTS(SELECT 1 FROM %s WHERE %s IS NULL LIMIT 1)", qualified, col)
+
+	var exists bool
+	if err := bms.db.QueryRowContext(ctx, query).Scan(&exists); err != nil {
+		return false, fmt.Errorf("failed to check for null values in %s.%s: %w", table, column, err)
+	}
+	return exists, nil
+}
+
+// pqQuoteIdent minimally quotes an identifier using double quotes, escaping internal quotes.
+func pqQuoteIdent(ident string) string {
+	return "\"" + strings.ReplaceAll(ident, "\"", "\"\"") + "\""
+}
+
 // ValidateMigrationTableAndColumn asserts that the column and table exists in the database.
 func (bms *backgroundMigrationStore) ValidateMigrationTableAndColumn(ctx context.Context, tableWithSchema, column string) error {
 	// TODO: Consider improving the validation here by using a type system such that we're taking some kind of ValidatedTable and ValidatedColumn types
@@ -718,7 +757,7 @@ func scanBackgroundMigrationJob(row *Row) (*models.BackgroundMigrationJob, error
 
 func scanBackgroundMigration(row *Row) (*models.BackgroundMigration, error) {
 	bm := new(models.BackgroundMigration)
-	if err := row.Scan(&bm.ID, &bm.Name, &bm.StartID, &bm.EndID, &bm.BatchSize, &bm.Status, &bm.JobName, &bm.TargetTable, &bm.TargetColumn, &bm.ErrorCode); err != nil {
+	if err := row.Scan(&bm.ID, &bm.Name, &bm.StartID, &bm.EndID, &bm.BatchSize, &bm.Status, &bm.JobName, &bm.TargetTable, &bm.TargetColumn, &bm.ErrorCode, &bm.BatchingStrategy); err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("scanning batched background migration: %w", err)
 		}
@@ -734,7 +773,7 @@ func scanFullBackgroundMigrations(rows *sql.Rows) (models.BackgroundMigrations, 
 
 	for rows.Next() {
 		b := new(models.BackgroundMigration)
-		err := rows.Scan(&b.ID, &b.Name, &b.StartID, &b.EndID, &b.BatchSize, &b.Status, &b.JobName, &b.TargetTable, &b.TargetColumn, &b.ErrorCode)
+		err := rows.Scan(&b.ID, &b.Name, &b.StartID, &b.EndID, &b.BatchSize, &b.Status, &b.JobName, &b.TargetTable, &b.TargetColumn, &b.ErrorCode, &b.BatchingStrategy)
 		if err != nil {
 			return nil, fmt.Errorf("scanning background migrations: %w", err)
 		}

@@ -265,6 +265,21 @@ func (mr *MockBackgroundMigrationStoreMockRecorder) GetPendingWALCount(ctx any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPendingWALCount", reflect.TypeOf((*MockBackgroundMigrationStore)(nil).GetPendingWALCount), ctx)
 }
 
+// HasNullValues mocks base method.
+func (m *MockBackgroundMigrationStore) HasNullValues(ctx context.Context, table, column string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HasNullValues", ctx, table, column)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// HasNullValues indicates an expected call of HasNullValues.
+func (mr *MockBackgroundMigrationStoreMockRecorder) HasNullValues(ctx, table, column any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasNullValues", reflect.TypeOf((*MockBackgroundMigrationStore)(nil).HasNullValues), ctx, table, column)
+}
+
 // IncrementJobAttempts mocks base method.
 func (m *MockBackgroundMigrationStore) IncrementJobAttempts(ctx context.Context, jobID int) error {
 	m.ctrl.T.Helper()

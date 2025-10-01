@@ -45,16 +45,17 @@ const (
 	maxBackoff          = 30 * time.Minute
 
 	// Background Migration job log keys
-	jobIDKey        = "job_id"
-	jobBBMIDKey     = "job_bbm_id"
-	jobNameKey      = "job_name"
-	jobAttemptsKey  = "job_attempts"
-	jobStartIDKey   = "job_start_id"
-	jobEndIDKey     = "job_end_id"
-	jobBatchSizeKey = "job_batch_size"
-	jobStatusKey    = "job_status"
-	jobColumnKey    = "job_pagination_column"
-	jobTableKey     = "job_pagination_table"
+	jobIDKey           = "job_id"
+	jobBBMIDKey        = "job_bbm_id"
+	jobNameKey         = "job_name"
+	jobAttemptsKey     = "job_attempts"
+	jobStartIDKey      = "job_start_id"
+	jobEndIDKey        = "job_end_id"
+	jobBatchSizeKey    = "job_batch_size"
+	jobStatusKey       = "job_status"
+	jobColumnKey       = "job_pagination_column"
+	jobTableKey        = "job_pagination_table"
+	jobBatchingTypeKey = "job_batching_strategy"
 
 	// Background Migration log keys
 	bbmIDKey           = "bbm_id"
@@ -64,6 +65,7 @@ const (
 	bbmJobSignatureKey = "bbm_job_signature_key"
 	bbmTargetColumnKey = "bbm_target_column"
 	bbmTargetTableKey  = "bbm_target_table"
+	bbmBatchingTypeKey = "bbm_batching_strategy"
 )
 
 var (
@@ -448,7 +450,8 @@ func (jw *Worker) FindJob(ctx context.Context, bbmStore datastore.BackgroundMigr
 		bbmStatusKey:       bbm.Status.String(),
 		bbmBatchSizeKey:    bbm.BatchSize,
 		bbmTargetColumnKey: bbm.TargetColumn,
-		bbm.TargetTable:    bbm.TargetTable,
+		bbmTargetTableKey:  bbm.TargetTable,
+		bbmBatchingTypeKey: bbm.BatchingStrategy.Val(),
 	})
 
 	l.Info("a background migration was found that needs to be executed")
@@ -473,20 +476,19 @@ func (jw *Worker) FindJob(ctx context.Context, bbmStore datastore.BackgroundMigr
 
 	var job *models.BackgroundMigrationJob
 
-	done, err := hasRunAllBBMJobsAtLeastOnce(ctx, bbmStore, bbm)
+	if bbm.BatchingStrategy == models.NullBatchingBBMStrategy {
+		// failed jobs in null traversals are not retry-able because they have no (start-end) markers,
+		// instead a new job is run that will automatically contain the failed range.
+
+		job, err = findNullColumnJob(ctx, bbmStore, bbm)
+	} else {
+		job, err = findIDColumnJob(ctx, bbmStore, bbm)
+	}
+
 	if err != nil {
 		return nil, err
 	}
 
-	// if we haven't run all jobs for the Background Migration at least once first find and exhaust all new jobs before considering failed/retryable jobs.
-	if !done {
-		return findNewJob(ctx, bbmStore, bbm)
-	}
-
-	job, err = findRetryableJobs(ctx, bbmStore, bbm)
-	if err != nil {
-		return nil, err
-	}
 	if job != nil {
 		l := l.WithFields(log.Fields{
 			jobIDKey:        job.ID,
@@ -646,6 +648,74 @@ func findNewJob(ctx context.Context, bbmStore datastore.BackgroundMigrationStore
 	return job, nil
 }
 
+func isRemainingNullValues(ctx context.Context, bbmStore datastore.BackgroundMigrationStore, bbm *models.BackgroundMigration) (bool, error) {
+	hasNullValues, err := bbmStore.HasNullValues(ctx, bbm.TargetTable, bbm.TargetColumn)
+	if err != nil {
+		return false, err
+	}
+	return hasNullValues, nil
+}
+
+func finishBBM(ctx context.Context, bbmStore datastore.BackgroundMigrationStore, bbm *models.BackgroundMigration) error {
+	bbm.Status = models.BackgroundMigrationFinished
+	return bbmStore.UpdateStatus(ctx, bbm)
+}
+
+func createNullColumnJob(ctx context.Context, bbmStore datastore.BackgroundMigrationStore, bbm *models.BackgroundMigration) (*models.BackgroundMigrationJob, error) {
+	job := &models.BackgroundMigrationJob{
+		BBMID:            bbm.ID,
+		BatchSize:        bbm.BatchSize,
+		JobName:          bbm.JobName,
+		PaginationColumn: bbm.TargetColumn,
+		PaginationTable:  bbm.TargetTable,
+	}
+
+	err := bbmStore.CreateNewJob(ctx, job)
+	if err != nil {
+		return nil, err
+	}
+
+	return job, nil
+}
+
+// Find jobs for null column traversal strategy
+func findNullColumnJob(ctx context.Context, bbmStore datastore.BackgroundMigrationStore, bbm *models.BackgroundMigration) (*models.BackgroundMigrationJob, error) {
+	// Check if there are still NULL values to process
+	isRemainingNullValues, err := isRemainingNullValues(ctx, bbmStore, bbm)
+	if err != nil {
+		return nil, err
+	}
+
+	if !isRemainingNullValues {
+		err = finishBBM(ctx, bbmStore, bbm)
+		if err != nil {
+			return nil, err
+		}
+		return nil, nil
+	}
+
+	return createNullColumnJob(ctx, bbmStore, bbm)
+}
+
+// Find jobs for id column traversal strategy
+func findIDColumnJob(ctx context.Context, bbmStore datastore.BackgroundMigrationStore, bbm *models.BackgroundMigration) (*models.BackgroundMigrationJob, error) {
+	done, err := hasRunAllBBMJobsAtLeastOnce(ctx, bbmStore, bbm)
+	if err != nil {
+		return nil, err
+	}
+
+	// if we haven't run all jobs for the Background Migration at least once first find and exhaust all new jobs before considering failed/retryable jobs.
+	if !done {
+		return findNewJob(ctx, bbmStore, bbm)
+	}
+
+	job, err := findRetryableJobs(ctx, bbmStore, bbm)
+	if err != nil {
+		return nil, err
+	}
+	return job, nil
+}
+
 // hasRunAllBBMJobsAtLeastOnce checks if a Background Migration has run all its jobs at least once.
 func hasRunAllBBMJobsAtLeastOnce(ctx context.Context, bbmStore datastore.BackgroundMigrationStore, bbm *models.BackgroundMigration) (bool, error) {
 	// Check if any jobs for the selected Background Migration exist with the end bound of the Background Migration,
@@ -660,6 +730,10 @@ func hasRunAllBBMJobsAtLeastOnce(ctx context.Context, bbmStore datastore.Backgro
 func validateMigration(ctx context.Context, bbmStore datastore.BackgroundMigrationStore, workFuncs map[string]Work, bbm *models.BackgroundMigration) error {
 	if _, ok := workFuncs[bbm.JobName]; !ok {
 		return newInvalidJobSignatureError(ErrWorkFunctionNotFound)
+	}
+
+	if bbm.BatchingStrategy != models.SerialKeySetBatchingBBMStrategy && bbm.BatchingStrategy != models.NullBatchingBBMStrategy {
+		return newInvalidBatchingStrategy(fmt.Errorf("unknown batching strategy:%s", bbm.BatchingStrategy.String))
 	}
 
 	if err := bbmStore.ValidateMigrationTableAndColumn(ctx, bbm.TargetTable, bbm.TargetColumn); err != nil {

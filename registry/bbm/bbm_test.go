@@ -81,7 +81,7 @@ func TestFindJob_Errors(t *testing.T) {
 
 				gomock.InOrder(
 					bbmStoreMock.EXPECT().FindNext(ctx).Return(bbm, nil).Times(1),
-					bbmStoreMock.EXPECT().ValidateMigrationTableAndColumn(ctx, bbm.TargetTable, bbm.TargetTable).Return(errAnError).Times(1),
+					bbmStoreMock.EXPECT().ValidateMigrationTableAndColumn(ctx, bbm.TargetTable, bbm.TargetColumn).Return(errAnError).Times(1),
 				)
 
 				return bbmStoreMock
@@ -99,7 +99,7 @@ func TestFindJob_Errors(t *testing.T) {
 
 				gomock.InOrder(
 					bbmStoreMock.EXPECT().FindNext(ctx).Return(bbm, nil).Times(1),
-					bbmStoreMock.EXPECT().ValidateMigrationTableAndColumn(ctx, bbm.TargetTable, bbm.TargetTable).Return(errors.Join(errAnError, datastore.ErrUnknownTable)).Times(1),
+					bbmStoreMock.EXPECT().ValidateMigrationTableAndColumn(ctx, bbm.TargetTable, bbm.TargetColumn).Return(errors.Join(errAnError, datastore.ErrUnknownTable)).Times(1),
 					bbmStoreMock.EXPECT().UpdateStatus(ctx, failedBBM).Return(errAnError).Times(1),
 				)
 
@@ -118,7 +118,7 @@ func TestFindJob_Errors(t *testing.T) {
 
 				gomock.InOrder(
 					bbmStoreMock.EXPECT().FindNext(ctx).Return(bbm, nil).Times(1),
-					bbmStoreMock.EXPECT().ValidateMigrationTableAndColumn(ctx, bbm.TargetTable, bbm.TargetTable).Return(errors.Join(errAnError, datastore.ErrUnknownColumn)).Times(1),
+					bbmStoreMock.EXPECT().ValidateMigrationTableAndColumn(ctx, bbm.TargetTable, bbm.TargetColumn).Return(errors.Join(errAnError, datastore.ErrUnknownColumn)).Times(1),
 					bbmStoreMock.EXPECT().UpdateStatus(ctx, failedBBM).Return(errAnError).Times(1),
 				)
 
@@ -134,7 +134,7 @@ func TestFindJob_Errors(t *testing.T) {
 
 				gomock.InOrder(
 					bbmStoreMock.EXPECT().FindNext(ctx).Return(bbm, nil).Times(1),
-					bbmStoreMock.EXPECT().ValidateMigrationTableAndColumn(ctx, bbm.TargetTable, bbm.TargetTable).Return(nil).Times(1),
+					bbmStoreMock.EXPECT().ValidateMigrationTableAndColumn(ctx, bbm.TargetTable, bbm.TargetColumn).Return(nil).Times(1),
 					bbmStoreMock.EXPECT().FindJobWithEndID(ctx, bbm.ID, bbm.EndID).Return(nil, errAnError).Times(1),
 				)
 
@@ -150,7 +150,7 @@ func TestFindJob_Errors(t *testing.T) {
 
 				gomock.InOrder(
 					bbmStoreMock.EXPECT().FindNext(ctx).Return(bbm, nil).Times(1),
-					bbmStoreMock.EXPECT().ValidateMigrationTableAndColumn(ctx, bbm.TargetTable, bbm.TargetTable).Return(nil).Times(1),
+					bbmStoreMock.EXPECT().ValidateMigrationTableAndColumn(ctx, bbm.TargetTable, bbm.TargetColumn).Return(nil).Times(1),
 					bbmStoreMock.EXPECT().FindJobWithEndID(ctx, bbm.ID, bbm.EndID).Return(nil, nil).Times(1),
 					bbmStoreMock.EXPECT().FindLastJob(ctx, bbm).Return(nil, errAnError).Times(1),
 				)
@@ -167,7 +167,7 @@ func TestFindJob_Errors(t *testing.T) {
 
 				gomock.InOrder(
 					bbmStoreMock.EXPECT().FindNext(ctx).Return(bbm, nil).Times(1),
-					bbmStoreMock.EXPECT().ValidateMigrationTableAndColumn(ctx, bbm.TargetTable, bbm.TargetTable).Return(nil).Times(1),
+					bbmStoreMock.EXPECT().ValidateMigrationTableAndColumn(ctx, bbm.TargetTable, bbm.TargetColumn).Return(nil).Times(1),
 					bbmStoreMock.EXPECT().FindJobWithEndID(ctx, bbm.ID, bbm.EndID).Return(nil, nil).Times(1),
 					bbmStoreMock.EXPECT().FindLastJob(ctx, bbm).Return(nil, nil).Times(1),
 					bbmStoreMock.EXPECT().UpdateStatus(ctx, bbm).Return(errAnError).Times(1),
@@ -186,7 +186,7 @@ func TestFindJob_Errors(t *testing.T) {
 
 				gomock.InOrder(
 					bbmStoreMock.EXPECT().FindNext(ctx).Return(bbm, nil).Times(1),
-					bbmStoreMock.EXPECT().ValidateMigrationTableAndColumn(ctx, bbm.TargetTable, bbm.TargetTable).Return(nil).Times(1),
+					bbmStoreMock.EXPECT().ValidateMigrationTableAndColumn(ctx, bbm.TargetTable, bbm.TargetColumn).Return(nil).Times(1),
 					bbmStoreMock.EXPECT().FindJobWithEndID(ctx, bbm.ID, bbm.EndID).Return(nil, nil).Times(1),
 					bbmStoreMock.EXPECT().FindLastJob(ctx, bbm).Return(lastJob, nil).Times(1),
 					bbmStoreMock.EXPECT().FindJobEndFromJobStart(ctx, bbm.TargetTable, bbm.TargetColumn, max(lastJob.StartID+1, bbm.StartID), bbm.EndID, bbm.BatchSize).Return(0, errAnError).Times(1),
@@ -206,7 +206,7 @@ func TestFindJob_Errors(t *testing.T) {
 
 				gomock.InOrder(
 					bbmStoreMock.EXPECT().FindNext(ctx).Return(bbm, nil).Times(1),
-					bbmStoreMock.EXPECT().ValidateMigrationTableAndColumn(ctx, bbm.TargetTable, bbm.TargetTable).Return(nil).Times(1),
+					bbmStoreMock.EXPECT().ValidateMigrationTableAndColumn(ctx, bbm.TargetTable, bbm.TargetColumn).Return(nil).Times(1),
 					bbmStoreMock.EXPECT().FindJobWithEndID(ctx, bbm.ID, bbm.EndID).Return(nil, nil).Times(1),
 					bbmStoreMock.EXPECT().FindLastJob(ctx, bbm).Return(lastJob, nil).Times(1),
 
@@ -233,7 +233,7 @@ func TestFindJob_Errors(t *testing.T) {
 
 				gomock.InOrder(
 					bbmStoreMock.EXPECT().FindNext(ctx).Return(bbm, nil).Times(1),
-					bbmStoreMock.EXPECT().ValidateMigrationTableAndColumn(ctx, bbm.TargetTable, bbm.TargetTable).Return(nil).Times(1),
+					bbmStoreMock.EXPECT().ValidateMigrationTableAndColumn(ctx, bbm.TargetTable, bbm.TargetColumn).Return(nil).Times(1),
 					bbmStoreMock.EXPECT().FindJobWithEndID(ctx, bbm.ID, bbm.EndID).Return(finalJob, nil).Times(1),
 					bbmStoreMock.EXPECT().FindJobWithStatus(ctx, bbm.ID, models.BackgroundMigrationFailed).Return(nil, errAnError).Times(1),
 				)
@@ -253,7 +253,7 @@ func TestFindJob_Errors(t *testing.T) {
 
 				gomock.InOrder(
 					bbmStoreMock.EXPECT().FindNext(ctx).Return(bbm, nil).Times(1),
-					bbmStoreMock.EXPECT().ValidateMigrationTableAndColumn(ctx, bbm.TargetTable, bbm.TargetTable).Return(nil).Times(1),
+					bbmStoreMock.EXPECT().ValidateMigrationTableAndColumn(ctx, bbm.TargetTable, bbm.TargetColumn).Return(nil).Times(1),
 					bbmStoreMock.EXPECT().FindJobWithEndID(ctx, bbm.ID, bbm.EndID).Return(finalJob, nil).Times(1),
 					bbmStoreMock.EXPECT().FindJobWithStatus(ctx, bbm.ID, models.BackgroundMigrationFailed).Return(nil, nil).Times(1),
 					bbmStoreMock.EXPECT().UpdateStatus(ctx, finshedBBM).Return(errAnError).Times(1),
@@ -275,7 +275,7 @@ func TestFindJob_Errors(t *testing.T) {
 
 				gomock.InOrder(
 					bbmStoreMock.EXPECT().FindNext(ctx).Return(bbm, nil).Times(1),
-					bbmStoreMock.EXPECT().ValidateMigrationTableAndColumn(ctx, bbm.TargetTable, bbm.TargetTable).Return(nil).Times(1),
+					bbmStoreMock.EXPECT().ValidateMigrationTableAndColumn(ctx, bbm.TargetTable, bbm.TargetColumn).Return(nil).Times(1),
 					bbmStoreMock.EXPECT().FindJobWithEndID(ctx, bbm.ID, bbm.EndID).Return(finalJob, nil).Times(1),
 					bbmStoreMock.EXPECT().FindJobWithStatus(ctx, bbm.ID, models.BackgroundMigrationFailed).Return(retryableJob, nil).Times(1),
 					bbmStoreMock.EXPECT().UpdateStatus(ctx, failedBBM).Return(errAnError).Times(1),
@@ -341,7 +341,7 @@ func TestFindJob(t *testing.T) {
 
 				gomock.InOrder(
 					bbmStoreMock.EXPECT().FindNext(ctx).Return(bbm, nil).Times(1),
-					bbmStoreMock.EXPECT().ValidateMigrationTableAndColumn(ctx, bbm.TargetTable, bbm.TargetTable).Return(nil).Times(1),
+					bbmStoreMock.EXPECT().ValidateMigrationTableAndColumn(ctx, bbm.TargetTable, bbm.TargetColumn).Return(nil).Times(1),
 					bbmStoreMock.EXPECT().FindJobWithEndID(ctx, bbm.ID, bbm.EndID).Return(nil, nil).Times(1),
 					bbmStoreMock.EXPECT().FindLastJob(ctx, bbm).Return(nil, nil).Times(1),
 					bbmStoreMock.EXPECT().UpdateStatus(ctx, bbm).Return(nil).Times(1),
@@ -370,7 +370,7 @@ func TestFindJob(t *testing.T) {
 
 				gomock.InOrder(
 					bbmStoreMock.EXPECT().FindNext(ctx).Return(bbm, nil).Times(1),
-					bbmStoreMock.EXPECT().ValidateMigrationTableAndColumn(ctx, bbm.TargetTable, bbm.TargetTable).Return(nil).Times(1),
+					bbmStoreMock.EXPECT().ValidateMigrationTableAndColumn(ctx, bbm.TargetTable, bbm.TargetColumn).Return(nil).Times(1),
 					bbmStoreMock.EXPECT().FindJobWithEndID(ctx, bbm.ID, bbm.EndID).Return(nil, nil).Times(1),
 					bbmStoreMock.EXPECT().FindLastJob(ctx, bbm).Return(nil, nil).Times(1),
 					bbmStoreMock.EXPECT().UpdateStatus(ctx, bbm).Return(nil).Times(1),
@@ -392,7 +392,7 @@ func TestFindJob(t *testing.T) {
 
 				gomock.InOrder(
 					bbmStoreMock.EXPECT().FindNext(ctx).Return(bbm, nil).Times(1),
-					bbmStoreMock.EXPECT().ValidateMigrationTableAndColumn(ctx, bbm.TargetTable, bbm.TargetTable).Return(nil).Times(1),
+					bbmStoreMock.EXPECT().ValidateMigrationTableAndColumn(ctx, bbm.TargetTable, bbm.TargetColumn).Return(nil).Times(1),
 					bbmStoreMock.EXPECT().FindJobWithEndID(ctx, bbm.ID, bbm.EndID).Return(nil, nil).Times(1),
 					bbmStoreMock.EXPECT().FindLastJob(ctx, bbm).Return(foundJob, nil).Times(1),
 				)
@@ -410,7 +410,7 @@ func TestFindJob(t *testing.T) {
 
 				gomock.InOrder(
 					bbmStoreMock.EXPECT().FindNext(ctx).Return(bbm, nil).Times(1),
-					bbmStoreMock.EXPECT().ValidateMigrationTableAndColumn(ctx, bbm.TargetTable, bbm.TargetTable).Return(nil).Times(1),
+					bbmStoreMock.EXPECT().ValidateMigrationTableAndColumn(ctx, bbm.TargetTable, bbm.TargetColumn).Return(nil).Times(1),
 					bbmStoreMock.EXPECT().FindJobWithEndID(ctx, bbm.ID, bbm.EndID).Return(finalJob, nil).Times(1),
 					bbmStoreMock.EXPECT().FindJobWithStatus(ctx, bbm.ID, models.BackgroundMigrationFailed).Return(&expectedJob, nil).Times(1),
 				)
@@ -427,7 +427,7 @@ func TestFindJob(t *testing.T) {
 
 				gomock.InOrder(
 					bbmStoreMock.EXPECT().FindNext(ctx).Return(bbm, nil).Times(1),
-					bbmStoreMock.EXPECT().ValidateMigrationTableAndColumn(ctx, bbm.TargetTable, bbm.TargetTable).Return(nil).Times(1),
+					bbmStoreMock.EXPECT().ValidateMigrationTableAndColumn(ctx, bbm.TargetTable, bbm.TargetColumn).Return(nil).Times(1),
 					bbmStoreMock.EXPECT().FindJobWithEndID(ctx, bbm.ID, bbm.EndID).Return(finalJob, nil).Times(1),
 					bbmStoreMock.EXPECT().FindJobWithStatus(ctx, bbm.ID, models.BackgroundMigrationFailed).Return(nil, nil).Times(1),
 					bbmStoreMock.EXPECT().UpdateStatus(ctx, bbm).Return(nil).Times(1),
@@ -446,7 +446,7 @@ func TestFindJob(t *testing.T) {
 
 				gomock.InOrder(
 					bbmStoreMock.EXPECT().FindNext(ctx).Return(bbm, nil).Times(1),
-					bbmStoreMock.EXPECT().ValidateMigrationTableAndColumn(ctx, bbm.TargetTable, bbm.TargetTable).Return(nil).Times(1),
+					bbmStoreMock.EXPECT().ValidateMigrationTableAndColumn(ctx, bbm.TargetTable, bbm.TargetColumn).Return(nil).Times(1),
 					bbmStoreMock.EXPECT().FindJobWithEndID(ctx, bbm.ID, bbm.EndID).Return(finalJob, nil).Times(1),
 					bbmStoreMock.EXPECT().FindJobWithStatus(ctx, bbm.ID, models.BackgroundMigrationFailed).Return(&expectedJob, nil).Times(1),
 					bbmStoreMock.EXPECT().UpdateStatus(ctx, bbm).Return(nil).Times(1),
@@ -466,6 +466,128 @@ func TestFindJob(t *testing.T) {
 			require.Equal(t, test.expectedJob, job)
 		})
 	}
+}
+
+func TestFindJob_NullBatchingStrategy_CreateJobWhenNullsExist(t *testing.T) {
+	ctx := context.TODO()
+
+	// Work map must contain the job name for validateMigration to pass
+	work := map[string]Work{
+		"NullBackfill": {Name: "NullBackfill", Do: doErrorReturn(nil)},
+	}
+
+	// Background migration configured with Null batching strategy
+	nb := &models.BackgroundMigration{
+		ID:               10,
+		Name:             "NullBackfill",
+		Status:           models.BackgroundMigrationActive,
+		StartID:          0,
+		EndID:            0,
+		BatchSize:        100,
+		JobName:          "NullBackfill",
+		TargetTable:      "public.repositories",
+		TargetColumn:     "id",
+		BatchingStrategy: models.NullBatchingBBMStrategy,
+	}
+
+	expectedJob := &models.BackgroundMigrationJob{
+		BBMID:            nb.ID,
+		StartID:          0,
+		EndID:            0,
+		BatchSize:        nb.BatchSize,
+		JobName:          nb.JobName,
+		PaginationColumn: nb.TargetColumn,
+		PaginationTable:  nb.TargetTable,
+	}
+
+	setupMocks := func(ctrl *gomock.Controller) datastore.BackgroundMigrationStore {
+		bbmStoreMock := mocks.NewMockBackgroundMigrationStore(ctrl)
+		gomock.InOrder(
+			bbmStoreMock.EXPECT().FindNext(ctx).Return(nb, nil).Times(1),
+			bbmStoreMock.EXPECT().ValidateMigrationTableAndColumn(ctx, nb.TargetTable, nb.TargetColumn).Return(nil).Times(1),
+			bbmStoreMock.EXPECT().HasNullValues(ctx, nb.TargetTable, nb.TargetColumn).Return(true, nil).Times(1),
+			bbmStoreMock.EXPECT().CreateNewJob(ctx, expectedJob).Return(nil).Times(1),
+		)
+		return bbmStoreMock
+	}
+
+	job, err := NewWorker(work).FindJob(ctx, setupMocks(gomock.NewController(t)))
+	require.NoError(t, err)
+	require.Equal(t, expectedJob, job)
+}
+
+func TestFindJob_NullBatchingStrategy_MarkFinishedWhenNoNulls(t *testing.T) {
+	ctx := context.TODO()
+
+	work := map[string]Work{
+		"NullBackfill": {Name: "NullBackfill", Do: doErrorReturn(nil)},
+	}
+
+	nb := &models.BackgroundMigration{
+		ID:               11,
+		Name:             "NullBackfill",
+		Status:           models.BackgroundMigrationActive,
+		StartID:          0,
+		EndID:            0,
+		BatchSize:        50,
+		JobName:          "NullBackfill",
+		TargetTable:      "public.repositories",
+		TargetColumn:     "id",
+		BatchingStrategy: models.NullBatchingBBMStrategy,
+	}
+
+	finished := *nb
+	finished.Status = models.BackgroundMigrationFinished
+
+	setupMocks := func(ctrl *gomock.Controller) datastore.BackgroundMigrationStore {
+		bbmStoreMock := mocks.NewMockBackgroundMigrationStore(ctrl)
+		gomock.InOrder(
+			bbmStoreMock.EXPECT().FindNext(ctx).Return(nb, nil).Times(1),
+			bbmStoreMock.EXPECT().ValidateMigrationTableAndColumn(ctx, nb.TargetTable, nb.TargetColumn).Return(nil).Times(1),
+			bbmStoreMock.EXPECT().HasNullValues(ctx, nb.TargetTable, nb.TargetColumn).Return(false, nil).Times(1),
+			bbmStoreMock.EXPECT().UpdateStatus(ctx, &finished).Return(nil).Times(1),
+		)
+		return bbmStoreMock
+	}
+
+	job, err := NewWorker(work).FindJob(ctx, setupMocks(gomock.NewController(t)))
+	require.NoError(t, err)
+	require.Nil(t, job)
+}
+
+func TestFindJob_NullBatchingStrategy_ErrorFromHasNullValues(t *testing.T) {
+	ctx := context.TODO()
+
+	work := map[string]Work{
+		"NullBackfill": {Name: "NullBackfill", Do: doErrorReturn(nil)},
+	}
+
+	nb := &models.BackgroundMigration{
+		ID:               12,
+		Name:             "NullBackfill",
+		Status:           models.BackgroundMigrationActive,
+		StartID:          0,
+		EndID:            0,
+		BatchSize:        25,
+		JobName:          "NullBackfill",
+		TargetTable:      "public.repositories",
+		TargetColumn:     "id",
+		BatchingStrategy: models.NullBatchingBBMStrategy,
+	}
+
+	setupMocks := func(ctrl *gomock.Controller) datastore.BackgroundMigrationStore {
+		bbmStoreMock := mocks.NewMockBackgroundMigrationStore(ctrl)
+		gomock.InOrder(
+			bbmStoreMock.EXPECT().FindNext(ctx).Return(nb, nil).Times(1),
+			bbmStoreMock.EXPECT().ValidateMigrationTableAndColumn(ctx, nb.TargetTable, nb.TargetColumn).Return(nil).Times(1),
+			bbmStoreMock.EXPECT().HasNullValues(ctx, nb.TargetTable, nb.TargetColumn).Return(false, errAnError).Times(1),
+		)
+		return bbmStoreMock
+	}
+
+	job, err := NewWorker(work).FindJob(ctx, setupMocks(gomock.NewController(t)))
+	require.ErrorIs(t, err, errAnError)
+	require.Nil(t, job)
 }
 
 // TestExecuteJob_Errors tests all the error paths on the `ExecuteJob` method.

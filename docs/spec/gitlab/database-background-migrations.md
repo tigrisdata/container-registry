@@ -123,6 +123,20 @@ CREATE INDEX idx_bbm_jobs_status ON batched_background_migration_jobs (status);
 | `invalid_job_signature` | 3     | Invalid job signature reference                                 |
 | `max_job_retry`         | 4     | A migration's job exceeded the maximum configured retry attempt |
 
+## Batching strategies
+
+The Registry supports two primary batching strategies for background migrations:
+
+**ID/Serial Keyset Batching (default):** This strategy paginates using a monotonically increasing column, typically the `id`. It employs keyset semantics, where each job is defined by `min_value` and `max_value` bounds, allowing the work function to operate over a specified range of data.
+
+**Null/Predicate Batching:** This approach targets rows that meet a specific condition, typically `WHERE <column> IS NULL`. It is particularly useful for backfilling tables that lack a numeric serial keyset pagination column. Instead of using numeric ranges, this strategy relies on predicates for selection. Jobs modify the predicate within the same transaction, reducing the number of records that need to satisfy the predicate in future jobs.
+
+For Null/Predicate Batching, there are important considerations:
+
+- **Concurrency and Idempotence:** The work must be idempotent and should modify the predicate (e.g., update the NULL column) within the same transaction to prevent reprocessing the same rows repeatedly.
+
+- **Performance Optimization:** It is crucial to add an index to efficiently support the predicate, with a preference for a partial index. Without an index, the operation to check for remaining work can degrade into full table scans, especially in large tables, impacting performance significantly. The discussion [here](https://gitlab.com/gitlab-org/container-registry/-/issues/1248#note_1877479379) is a clear example of why this is needed.
+
 ## Creation
 
 Batch Background Migrations (BBMs) are created by adding a new migration into the normal schema migrations. This process involves several steps:

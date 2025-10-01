@@ -411,6 +411,75 @@ func TestSyncWorker_FindJob(t *testing.T) {
 			},
 			expectedJob: &expectedJob,
 		},
+		{
+			name:   "null strategy: create job when nulls exist",
+			worker: NewSyncWorker(nil),
+			setupMocks: func(ctrl *gomock.Controller) datastore.BackgroundMigrationStore {
+				bbmStoreMock := mocks.NewMockBackgroundMigrationStore(ctrl)
+				nb := &models.BackgroundMigration{
+					ID:               101,
+					Name:             "NullBackfill",
+					Status:           models.BackgroundMigrationActive,
+					BatchSize:        25,
+					JobName:          "NullBackfill",
+					TargetTable:      "public.repositories",
+					TargetColumn:     "id",
+					BatchingStrategy: models.NullBatchingBBMStrategy,
+				}
+				job := &models.BackgroundMigrationJob{
+					BBMID:            nb.ID,
+					BatchSize:        nb.BatchSize,
+					JobName:          nb.JobName,
+					PaginationColumn: nb.TargetColumn,
+					PaginationTable:  nb.TargetTable,
+				}
+
+				gomock.InOrder(
+					bbmStoreMock.EXPECT().FindNextByStatus(ctx, models.BackgroundMigrationFailed).Return(nil, nil).Times(1),
+					bbmStoreMock.EXPECT().FindNext(ctx).Return(nb, nil).Times(1),
+					bbmStoreMock.EXPECT().HasNullValues(ctx, nb.TargetTable, nb.TargetColumn).Return(true, nil).Times(1),
+					bbmStoreMock.EXPECT().CreateNewJob(ctx, job).Return(nil).Times(1),
+				)
+				return bbmStoreMock
+			},
+			expectedJob: &models.BackgroundMigrationJob{
+				BBMID:            101,
+				BatchSize:        25,
+				JobName:          "NullBackfill",
+				PaginationColumn: "id",
+				PaginationTable:  "public.repositories",
+				BatchingStrategy: models.NullBatchingBBMStrategy,
+			},
+		},
+		{
+			name:   "null strategy: mark finished when no nulls exist",
+			worker: NewSyncWorker(nil),
+			setupMocks: func(ctrl *gomock.Controller) datastore.BackgroundMigrationStore {
+				bbmStoreMock := mocks.NewMockBackgroundMigrationStore(ctrl)
+				nb := &models.BackgroundMigration{
+					ID:               102,
+					Name:             "NullBackfill",
+					Status:           models.BackgroundMigrationActive,
+					BatchSize:        25,
+					JobName:          "NullBackfill",
+					TargetTable:      "public.repositories",
+					TargetColumn:     "id",
+					BatchingStrategy: models.NullBatchingBBMStrategy,
+				}
+
+				gomock.InOrder(
+					bbmStoreMock.EXPECT().FindNextByStatus(ctx, models.BackgroundMigrationFailed).Return(nil, nil).Times(1),
+					bbmStoreMock.EXPECT().FindNext(ctx).Return(nb, nil).Times(1),
+					bbmStoreMock.EXPECT().HasNullValues(ctx, nb.TargetTable, nb.TargetColumn).Return(false, nil).Times(1),
+					bbmStoreMock.EXPECT().UpdateStatus(ctx, gomock.Any()).Return(nil).Times(1),
+					// Loop continues and finds nothing left to do
+					bbmStoreMock.EXPECT().FindNextByStatus(ctx, models.BackgroundMigrationFailed).Return(nil, nil).Times(1),
+					bbmStoreMock.EXPECT().FindNext(ctx).Return(nil, nil).Times(1),
+				)
+				return bbmStoreMock
+			},
+			expectedJob: nil,
+		},
 	}
 
 	for _, test := range tt {

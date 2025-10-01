@@ -5651,7 +5651,9 @@ CREATE TABLE public.batched_background_migrations (
     column_name text NOT NULL,
     failure_error_code smallint,
     started_at timestamp with time zone,
-    finished_at timestamp with time zone
+    finished_at timestamp with time zone,
+    batching_strategy text,
+    total_tuple_count bigint
 );
 
 ALTER TABLE public.batched_background_migrations
