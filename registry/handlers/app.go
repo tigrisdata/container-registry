@@ -138,18 +138,14 @@ type App struct {
 	manifestRefLimit         int
 	manifestPayloadSizeLimit int
 
-	// dualRedisCache provides dual-cache functionality for gradual Redis cluster migration.
-	// https://gitlab.com/gitlab-org/container-registry/-/issues/1576.
-	dualRedisCache *iredis.DualCache
-
 	// redisCache is the abstraction for manipulating cached data on Redis.
-	redisCache iredis.CacheInterface
+	redisCache *iredis.Cache
 
 	// redisCacheClient is the raw Redis client used for caching.
 	redisCacheClient redis.UniversalClient
 
 	// redisLBCache is the abstraction for the database load balancing Redis cache.
-	redisLBCache iredis.CacheInterface
+	redisLBCache *iredis.Cache
 
 	// rateLimiters expects a slice of ordered limiters by precedence
 	// see configureRateLimiters for implementation details.
@@ -175,8 +171,7 @@ func NewApp(ctx context.Context, config *configuration.Configuration) (*App, err
 		Config:  config,
 		Context: ctx,
 
-		shutdownFuncs:  make([]shutdownFunc, 0),
-		dualRedisCache: iredis.NewDualCache(nil, nil),
+		shutdownFuncs: make([]shutdownFunc, 0),
 	}
 
 	if err := app.initMetaRouter(); err != nil {
@@ -247,28 +242,11 @@ func NewApp(ctx context.Context, config *configuration.Configuration) (*App, err
 		errortracking.Capture(err, errortracking.WithContext(ctx), errortracking.WithStackTrace())
 	}
 
-	// Initialize dual cache with primary (redisCache) and standby (nil for now).
-	// Feature flags control dual write behavior and read routing for migration.
-	var dualRedisOpts []iredis.DualCacheOption
-	if feature.DualCacheWrite.Enabled() {
-		dualRedisOpts = append(dualRedisOpts, iredis.WithEnableDualWrite())
-	}
-
-	if feature.DualCacheReadFromStandBy.Enabled() {
-		dualRedisOpts = append(dualRedisOpts, iredis.WithReadFromStandBy())
-	}
-
-	app.dualRedisCache = iredis.NewDualCache(app.redisCache, nil, dualRedisOpts...)
-
 	err = app.applyStorageMiddleware(config.Middleware["storage"])
 	if err != nil {
 		return nil, err
 	}
 
-	// Redis rate-limiter will be disabled on GitLab.com environments where it
-	// is currently enabled (`gstg` and `pre`) so we don't need to support it
-	// in the dualCache.
-	// https://gitlab.com/groups/gitlab-com/gl-infra/data-access/durability/-/epics/24#note_2599994238
 	if err := app.ConfigureRedisRateLimiter(ctx, config); err != nil {
 		// Redis rate-limiter is not a strictly required dependency, we simply log and report a failure here
 		// and proceed to not prevent the app from starting.
@@ -458,18 +436,7 @@ func NewApp(ctx context.Context, config *configuration.Configuration) (*App, err
 			if err := app.configureRedisLoadBalancingCache(ctx, config); err != nil {
 				return nil, err
 			}
-
-			// Inject redisLBCache as the standby cache to enable dual writes.
-			// When DualCacheWrite is enabled, writes will go to both redisCache (primary) and redisLBCache (standby).
-			app.dualRedisCache.InjectStandByCache(app.redisLBCache)
-			if feature.DualCacheSwapInstances.Enabled() {
-				// Promote standby (redisLBCache) to primary role for all cache operations.
-				app.dualRedisCache.UseStandByAsPrimary()
-			}
-
-			if app.redisLBCache != nil {
-				dbOpts = append(dbOpts, datastore.WithLSNCache(datastore.NewCentralRepositoryCache(app.redisLBCache)))
-			}
+			dbOpts = append(dbOpts, datastore.WithLSNCache(datastore.NewCentralRepositoryCache(app.redisLBCache)))
 
 			// service discovery takes precedence over fixed hosts
 			if config.Database.LoadBalancing.Record != "" {
@@ -1678,8 +1645,8 @@ func (app *App) dispatcher(dispatch dispatchFunc) http.Handler {
 		}
 
 		if ctx.useDatabase {
-			if app.dualRedisCache.IsPrimaryCacheEnabled() {
-				ctx.repoCache = datastore.NewCentralRepositoryCache(app.dualRedisCache)
+			if app.redisCache != nil {
+				ctx.repoCache = datastore.NewCentralRepositoryCache(app.redisCache)
 			} else {
 				ctx.repoCache = datastore.NewSingleRepositoryCache()
 			}
@@ -1734,8 +1701,8 @@ func (app *App) dispatcherGitlab(dispatch dispatchFunc) http.Handler {
 		}
 
 		// Initialize repository cache
-		if app.dualRedisCache.IsPrimaryCacheEnabled() {
-			ctx.repoCache = datastore.NewCentralRepositoryCache(app.dualRedisCache)
+		if app.redisCache != nil {
+			ctx.repoCache = datastore.NewCentralRepositoryCache(app.redisCache)
 		} else {
 			ctx.repoCache = datastore.NewSingleRepositoryCache()
 		}
@@ -2157,7 +2124,7 @@ func (app *App) applyStorageMiddleware(middlewares []configuration.Middleware) e
 				return fmt.Errorf("urlcache storage middleware can only be applied once")
 			}
 			urlCacheMiddlewareAlreadyApplied = true
-			mw.Options["_redisCache"] = app.dualRedisCache
+			mw.Options["_redisCache"] = app.redisCache
 		case "cloudfront", "googlecdn", "redirect":
 			if cdnMiddlewareAlreadyApplied {
 				return fmt.Errorf("using more than one storage CDN middleware is not supported")

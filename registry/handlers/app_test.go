@@ -52,12 +52,11 @@ func TestAppDistribtionDispatcher(t *testing.T) {
 	registry, err := storage.NewRegistry(ctx, driver, storage.BlobDescriptorCacheProvider(memorycache.NewInMemoryBlobDescriptorCacheProvider()), storage.EnableDelete, storage.EnableRedirect)
 	require.NoError(t, err, "error creating registry")
 	app := &App{
-		Config:         &configuration.Configuration{},
-		Context:        ctx,
-		router:         &metaRouter{distribution: v2.Router()},
-		driver:         driver,
-		registry:       registry,
-		dualRedisCache: iredis.NewDualCache(nil, nil),
+		Config:   &configuration.Configuration{},
+		Context:  ctx,
+		router:   &metaRouter{distribution: v2.Router()},
+		driver:   driver,
+		registry: registry,
 	}
 
 	require.NoError(t, app.initMetaRouter())
@@ -839,11 +838,10 @@ func TestRecordLSNMiddleware(t *testing.T) {
 		},
 		Context: ctx,
 		// doesn't matter which router we use (distribution or GitLab's), we're only testing the middleware internals
-		router:         &metaRouter{distribution: v2.Router()},
-		driver:         driver,
-		registry:       registry,
-		db:             mockDB,
-		dualRedisCache: iredis.NewDualCache(nil, nil),
+		router:   &metaRouter{distribution: v2.Router()},
+		driver:   driver,
+		registry: registry,
+		db:       mockDB,
 	}
 	require.NoError(t, app.initMetaRouter())
 
@@ -1084,12 +1082,11 @@ func TestDispatcherGitlab_RepoCacheInitialization(t *testing.T) {
 				registry: registry,
 				// Bypass authorization logic
 				accessController: nil,
-				dualRedisCache:   iredis.NewDualCache(nil, nil),
 			}
 
 			if tc.redisCache {
 				// Create a mock Redis cache
-				app.dualRedisCache = iredis.NewDualCache(&iredis.Cache{}, nil)
+				app.redisCache = &iredis.Cache{}
 			}
 
 			// Initialize the app's router to get proper GitLab v1 routes
