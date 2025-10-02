@@ -1031,6 +1031,8 @@ func TestGitlabAPI_RepositoryTagsList_DefaultPageSize(t *testing.T) {
 	require.NoError(t, err)
 	createRepositoryWithMultipleIdenticalTags(t, env, imageName.Name(), tags)
 
+	waitForReplica(t, env.db)
+
 	u, err := env.builder.BuildGitlabV1RepositoryTagsURL(imageName)
 	require.NoError(t, err)
 	resp, err := http.Get(u)
@@ -1344,6 +1346,8 @@ func TestGitlabAPI_SubRepositoryList(t *testing.T) {
 	// seed a repo under the same base path foo/bar but without tags
 	seedRandomSchema2Manifest(t, env, repoWithoutTag, putByDigest)
 
+	waitForReplica(t, env.db)
+
 	tt := []struct {
 		name               string
 		queryParams        url.Values
@@ -1499,6 +1503,8 @@ func TestGitlabAPI_SubRepositoryList_DefaultPageSize(t *testing.T) {
 
 	// seed repos of the same base path foo/bar but with a tagged manifest
 	seedMultipleRepositoriesWithTaggedLatestManifest(t, env, reposWithTag)
+
+	waitForReplica(t, env.db)
 
 	u, err := env.builder.BuildGitlabV1SubRepositoriesURL(baseRepoName)
 	require.NoError(t, err)
