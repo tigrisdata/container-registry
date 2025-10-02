@@ -154,8 +154,8 @@ github.com/aws/aws-sdk-go-v2/config v1.31.12 h1:pYM1Qgy0dKZLHX2cXslNacbcEFMkDMl+
 github.com/aws/aws-sdk-go-v2/config v1.31.12/go.mod h1:/MM0dyD7KSDPR+39p9ZNVKaHDLb9qnfDurvVS2KAhN8=
 github.com/aws/aws-sdk-go-v2/credentials v1.18.16 h1:4JHirI4zp958zC026Sm+V4pSDwW4pwLefKrc0bF2lwI=
 github.com/aws/aws-sdk-go-v2/credentials v1.18.16/go.mod h1:qQMtGx9OSw7ty1yLclzLxXCRbrkjWAM7JnObZjmCB7I=
-github.com/aws/aws-sdk-go-v2/feature/cloudfront/sign v1.9.7 h1:9+8/2ry9VQ7GL/+FgNPV3yJsZCvnoFfqEVWAct+JLkg=
-github.com/aws/aws-sdk-go-v2/feature/cloudfront/sign v1.9.7/go.mod h1:TY2E1cxPi/d2eKArjkaO98RQ/95I0omLOslltKMANlI=
+github.com/aws/aws-sdk-go-v2/feature/cloudfront/sign v1.9.9 h1:SK6URtYEpBirQ5gxiMkPOnrRq0+SlBxVIc3hbEggebs=
+github.com/aws/aws-sdk-go-v2/feature/cloudfront/sign v1.9.9/go.mod h1:yRGru0ebSDt7QIJpubwbvCoQpEv+7Yyrz6adCzOHpUk=
 github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.9 h1:Mv4Bc0mWmv6oDuSWTKnk+wgeqPL5DRFu5bQL9BGPQ8Y=
 github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.9/go.mod h1:IKlKfRppK2a1y0gy1yH6zD+yX5uplJ6UuPlgd48dJiQ=
 github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.9 h1:se2vOWGD3dWQUtfn4wEjRQJb1HK1XsNIt825gskZ970=
