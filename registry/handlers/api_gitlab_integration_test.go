@@ -760,6 +760,15 @@ func TestGitlabAPI_RepositoryTagsList_PublishedAt(t *testing.T) {
 		require.NoError(t, dbtestutil.TruncateAllTables(env.db.Primary()))
 	})
 
+	// Debug: Verify data was loaded correctly
+	var tagCount int
+	dbErr := env.db.Primary().QueryRow("SELECT COUNT(*) FROM tags WHERE repository_id = (SELECT id FROM repositories WHERE path = 'usage-group-2/sub-group-1/project-1')").Scan(&tagCount)
+	if dbErr != nil {
+		t.Logf("FLAKY_TEST_DEBUG: Error counting tags after fixture load: %v", dbErr)
+	} else {
+		t.Logf("FLAKY_TEST_DEBUG: Found %d tags in database after fixture load for repository 'usage-group-2/sub-group-1/project-1'", tagCount)
+	}
+
 	// see ../datastore/testdata/fixtures/tags.sql
 	imageName, err := reference.WithName("usage-group-2/sub-group-1/project-1")
 	require.NoError(t, err)
@@ -924,6 +933,8 @@ func TestGitlabAPI_RepositoryTagsList_PublishedAt(t *testing.T) {
 
 	for tn, test := range tt {
 		t.Run(tn, func(t *testing.T) {
+			t.Logf("FLAKY_TEST_DEBUG: Starting subtest %q with params: %v, expected %d tags", tn, test.queryParams, len(test.expectedOrderedTags))
+
 			sort := "published_at"
 			if test.descending {
 				sort = "-" + sort
@@ -932,6 +943,33 @@ func TestGitlabAPI_RepositoryTagsList_PublishedAt(t *testing.T) {
 
 			u, err := env.builder.BuildGitlabV1RepositoryTagsURL(imageName, test.queryParams)
 			require.NoError(t, err)
+
+			// Debug: Verify test data is accessible on replica databases before query
+			if os.Getenv("REGISTRY_DATABASE_LOADBALANCING_ENABLED") == "true" {
+				replicas := env.db.Replicas()
+				t.Logf("FLAKY_TEST_DEBUG: Verifying test data on %d replica databases before subtest query", len(replicas))
+
+				for i, replica := range replicas {
+					// Check repository exists
+					var repoExists bool
+					err := replica.QueryRow("SELECT EXISTS(SELECT 1 FROM repositories WHERE path = 'usage-group-2/sub-group-1/project-1')").Scan(&repoExists)
+					if err != nil {
+						t.Logf("FLAKY_TEST_DEBUG: ERROR: Replica %d failed to check repository existence: %v", i, err)
+					} else {
+						t.Logf("FLAKY_TEST_DEBUG: Replica %d: Repository exists = %v", i, repoExists)
+					}
+
+					// Check tag count
+					var tagCount int
+					err = replica.QueryRow("SELECT COUNT(*) FROM tags WHERE repository_id = (SELECT id FROM repositories WHERE path = 'usage-group-2/sub-group-1/project-1')").Scan(&tagCount)
+					if err != nil {
+						t.Logf("FLAKY_TEST_DEBUG: ERROR: Replica %d failed to query tag count: %v", i, err)
+					} else {
+						t.Logf("FLAKY_TEST_DEBUG: Replica %d: Found %d tags for test repository", i, tagCount)
+					}
+				}
+			}
+
 			resp, err := http.Get(u)
 			require.NoError(t, err)
 			defer resp.Body.Close()
@@ -942,6 +980,12 @@ func TestGitlabAPI_RepositoryTagsList_PublishedAt(t *testing.T) {
 			dec := json.NewDecoder(resp.Body)
 			err = dec.Decode(&body)
 			require.NoError(t, err)
+
+			// Log actual vs expected before assertion
+			t.Logf("FLAKY_TEST_DEBUG: Response body contains %d tags, expected %d tags", len(body), len(test.expectedOrderedTags))
+			if len(body) > 0 {
+				t.Logf("FLAKY_TEST_DEBUG: First tag in response: %+v", body[0])
+			}
 
 			require.Len(t, body, len(test.expectedOrderedTags))
 
@@ -2582,16 +2626,27 @@ func assertCommonResponseFields(t *testing.T, r *handlers.RepositoryTagDetailAPI
 func waitForReplica(t *testing.T, db datastore.LoadBalancer) {
 	t.Helper()
 
-	if os.Getenv("REGISTRY_DATABASE_LOADBALANCING_ENABLED") != "true" {
+	loadBalancingEnabled := os.Getenv("REGISTRY_DATABASE_LOADBALANCING_ENABLED")
+	t.Logf("FLAKY_TEST_DEBUG: waitForReplica: REGISTRY_DATABASE_LOADBALANCING_ENABLED=%q", loadBalancingEnabled)
+
+	if loadBalancingEnabled != "true" {
+		t.Log("FLAKY_TEST_DEBUG: waitForReplica: Load balancing not enabled, skipping replica wait")
 		return
 	}
 
+	replicaCount := len(db.Replicas())
+	t.Logf("FLAKY_TEST_DEBUG: waitForReplica: Found %d replicas to check", replicaCount)
+
+	startTime := time.Now()
 	require.Eventually(
 		t,
 		isReplicaUpToDate(t, db),
 		5*time.Second,
 		500*time.Millisecond,
 		"replica did not sync in time")
+
+	elapsed := time.Since(startTime)
+	t.Logf("FLAKY_TEST_DEBUG: waitForReplica: All replicas are up to date after %v seconds", elapsed.Seconds())
 }
 
 func isReplicaUpToDate(t *testing.T, db datastore.LoadBalancer) func() bool {
@@ -2601,27 +2656,44 @@ func isReplicaUpToDate(t *testing.T, db datastore.LoadBalancer) func() bool {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
 
-		for _, replica := range db.Replicas() {
+		replicas := db.Replicas()
+		if len(replicas) == 0 {
+			t.Log("FLAKY_TEST_DEBUG: isReplicaUpToDate: No replicas found, returning true")
+			return true
+		}
+
+		for i, replica := range replicas {
 			var result sql.NullBool
+			var receiveLSN, replayLSN sql.NullString
+
+			// Query both LSN values for debugging
+			// We use <= instead of = to check if a replica is caught up because:
+			// 1. Normally, receive_lsn = replay_lsn when a replica is fully caught up
+			// 2. In certain scenarios (failover, recovery, etc.), replay_lsn can advance beyond
+			//    receive_lsn while the replica is still considered "caught up"
+			// The inequality check handles both the normal case and these edge cases correctly.
 			row := replica.QueryRowContext(
 				ctx,
-				// We use <= instead of = to check if a replica is caught up because:
-				// 1. Normally, receive_lsn = replay_lsn when a replica is fully caught up
-				// 2. In certain scenarios (failover, recovery, etc.), replay_lsn can advance beyond
-				//    receive_lsn while the replica is still considered "caught up"
-				// The inequality check handles both the normal case and these edge cases correctly.
-				"SELECT pg_last_wal_receive_lsn() <= pg_last_wal_replay_lsn() AS is_caught_up;",
+				"SELECT pg_last_wal_receive_lsn(), pg_last_wal_replay_lsn(), pg_last_wal_receive_lsn() <= pg_last_wal_replay_lsn() AS is_caught_up;",
 			)
 
-			err := row.Scan(&result)
-			require.NoError(t, err)
+			err := row.Scan(&receiveLSN, &replayLSN, &result)
+			if err != nil {
+				t.Logf("FLAKY_TEST_DEBUG: isReplicaUpToDate: Error checking replica %d: %v", i, err)
+				require.NoError(t, err)
+			}
+
+			t.Logf("FLAKY_TEST_DEBUG: isReplicaUpToDate: Replica %d - receive_lsn=%q, replay_lsn=%q, is_caught_up=%v (valid=%v)",
+				i, receiveLSN.String, replayLSN.String, result.Bool, result.Valid)
 
 			// replica not in sync yet, return early
 			if !result.Valid || !result.Bool {
+				t.Logf("FLAKY_TEST_DEBUG: isReplicaUpToDate: Replica %d not in sync, returning false", i)
 				return false
 			}
 		}
 
+		t.Logf("FLAKY_TEST_DEBUG: isReplicaUpToDate: All %d replicas are in sync, returning true", len(replicas))
 		return true
 	}
 }
