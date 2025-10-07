@@ -14,8 +14,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	dcontext "github.com/docker/distribution/context"
 	"github.com/docker/distribution/registry/auth"
+	itestutil "github.com/docker/distribution/registry/internal/testutil"
 	"github.com/docker/distribution/testutil"
 	"github.com/docker/libtrust"
 	"github.com/stretchr/testify/assert"
@@ -228,8 +230,13 @@ func TestLeeway(t *testing.T) {
 		TrustedKeys:       trustedKeys,
 	}
 
+	mockClock := clock.NewMock()
+	now := time.Now()
+	mockClock.Set(now)
+	itestutil.StubClock(t, &systemClock, mockClock)
+
 	// nbf verification should pass within leeway
-	futureNow := time.Now().Add(time.Duration(5) * time.Second)
+	futureNow := now.Add(time.Duration(5) * time.Second)
 	token, err := makeTestToken(t, issuer, audience, access, rootKeys[0], 0, futureNow, futureNow.Add(5*time.Minute))
 	require.NoError(t, err)
 
@@ -237,7 +244,7 @@ func TestLeeway(t *testing.T) {
 	assert.NoError(t, token.Verify(verifyOps))
 
 	// nbf verification should fail with a skew larger than leeway
-	futureNow = time.Now().Add(time.Duration(61) * time.Second)
+	futureNow = now.Add(time.Duration(61) * time.Second)
 	token, err = makeTestToken(t, issuer, audience, access, rootKeys[0], 0, futureNow, futureNow.Add(5*time.Minute))
 	require.NoError(t, err)
 
@@ -245,14 +252,14 @@ func TestLeeway(t *testing.T) {
 	assert.Error(t, token.Verify(verifyOps), "verification should fail for token with nbf in the future outside leeway")
 
 	// exp verification should pass within leeway
-	token, err = makeTestToken(t, issuer, audience, access, rootKeys[0], 0, time.Now(), time.Now().Add(-59*time.Second))
+	token, err = makeTestToken(t, issuer, audience, access, rootKeys[0], 0, now, now.Add(-59*time.Second))
 	require.NoError(t, err)
 
 	// nolint: testifylint // require-error
 	assert.NoError(t, token.Verify(verifyOps))
 
 	// exp verification should fail with a skew larger than leeway
-	token, err = makeTestToken(t, issuer, audience, access, rootKeys[0], 0, time.Now(), time.Now().Add(-60*time.Second))
+	token, err = makeTestToken(t, issuer, audience, access, rootKeys[0], 0, now, now.Add(-60*time.Second))
 	require.NoError(t, err)
 
 	// nolint: testifylint // require-error
