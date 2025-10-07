@@ -38,11 +38,11 @@ default:
 variables:
   FF_TIMESTAMPS: 1
   # default Go version
-  GO_VERSION: "1.23"
+  GO_VERSION: "1.24"
   BUILDTAGS: "continuous_profiler_stackdriver"
   CGO_ENABLED: "1"
   GOPATH: $CI_PROJECT_DIR/.GOPATH
-  GOTESTSUM_VERSION: v1.12.0
+  GOTESTSUM_VERSION: v1.13.0
   PG_PREV_VERSION: "15"
   PG_CURR_VERSION: "16"
   PG_NEXT_VERSION: "17"
@@ -62,11 +62,11 @@ stages:
   parallel:
     matrix:
       - PG_VERSION: $PG_PREV_VERSION
-        GO_VERSION: [ "1.23", "1.24" ]
+        GO_VERSION: [ "1.24", "1.25" ]
       - PG_VERSION: $PG_CURR_VERSION
-        GO_VERSION: [ "1.23", "1.24" ]
+        GO_VERSION: [ "1.24", "1.25" ]
       - PG_VERSION: $PG_NEXT_VERSION
-        GO_VERSION: [ "1.23", "1.24" ]
+        GO_VERSION: [ "1.24", "1.25" ]
 
 # docker defaults
 .docker:

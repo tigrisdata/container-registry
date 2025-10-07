@@ -124,7 +124,7 @@ modules:download:
   stage: validate
   parallel:
     matrix:
-      - GO_VERSION: [ "1.23", "1.24" ]
+      - GO_VERSION: [ "1.24", "1.25" ]
   script:
     - go mod download
     # This is an external tool used to run tests, we can save some time by downloading in advance
@@ -162,7 +162,7 @@ build_smoketest:
     CGO_ENABLED: 0
   parallel:
     matrix:
-      - GO_VERSION: [ "1.23", "1.24" ]
+      - GO_VERSION: [ "1.24", "1.25" ]
         GOARCH: ["386","amd64","arm","arm64"]
   before_script:
     - apt-get update
@@ -239,10 +239,11 @@ database:structure-sql:
     PG_VERSION: $PG_CURR_VERSION
   script:
     # Install build/make deps
-    - apt-get update && apt-get -y install ca-certificates gnupg lsb-release
+    - apt-get update && apt-get -y install ca-certificates curl gnupg lsb-release
     # Install Postgres client
-    - wget -qO- https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add -
-    - sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+    - install -d /usr/share/postgresql-common/pgdg
+    - curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
+    - sh -c "echo 'deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main' > /etc/apt/sources.list.d/pgdg.list"
     - apt-get update && apt-get -y install postgresql-client-$PG_VERSION
     # Install pgFormatter
     - wget -qO- https://github.com/darold/pgFormatter/archive/refs/tags/v$PG_FORMATTER_VERSION.tar.gz | tar xz
