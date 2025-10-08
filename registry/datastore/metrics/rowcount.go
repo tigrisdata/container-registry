@@ -163,6 +163,20 @@ func (c *RowCountCollector) registerQueries() {
 		Args:        nil,
 	})
 
+	c.RegisterQuery(RowCountQuery{
+		Name:        "gc_blob_review_queue_overdue",
+		Description: "Number of overdue tasks in gc_blob_review_queue table",
+		Query:       "SELECT COUNT(*) FROM gc_blob_review_queue WHERE review_after < NOW()",
+		Args:        nil,
+	})
+
+	c.RegisterQuery(RowCountQuery{
+		Name:        "gc_manifest_review_queue_overdue",
+		Description: "Number of overdue tasks in gc_manifest_review_queue table",
+		Query:       "SELECT COUNT(*) FROM gc_manifest_review_queue WHERE review_after < NOW()",
+		Args:        nil,
+	})
+
 	// Migration count queries for tracking applied migrations
 	c.RegisterQuery(RowCountQuery{
 		Name:        "applied_pre_migrations",
