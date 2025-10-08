@@ -110,5 +110,6 @@ Media type IDs are currently implemented with `SMALLINT`, while it's unlikely to
 | `application/octet-stream`                                                |
 | `application/json`                                                        |
 | `/application/vnd.acme.rocket.config`                                     |
+| `application/vnd.dev.sigstore.bundle.v0.3+json`                           |
 
 The list above should be updated by engineers whenever modifying the `media_types` database table, keeping entries in alphabetical descending order.
