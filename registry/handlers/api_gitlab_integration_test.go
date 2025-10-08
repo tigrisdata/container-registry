@@ -2658,42 +2658,63 @@ func isReplicaUpToDate(t *testing.T, db datastore.LoadBalancer) func() bool {
 
 		replicas := db.Replicas()
 		if len(replicas) == 0 {
+			// This function is only called within `waitForReplica`, which applies `require.Eventually` to handle
+			// replication delays and any temporary errors with automatic retries. So here we're just logging instead
+			// of making the test fail immediately. The latter will happen if/when attempts are exhausted upstream.
 			t.Log("FLAKY_TEST_DEBUG: isReplicaUpToDate: No replicas found, returning true")
 			return true
 		}
+
+		// Get the primary's current LSN position
+		primary := db.Primary()
+		var primaryLSN sql.NullString
+		row := primary.QueryRowContext(ctx, "SELECT pg_current_wal_lsn();")
+		if err := row.Scan(&primaryLSN); err != nil {
+			t.Logf("isReplicaUpToDate: error getting primary LSN: %v", err)
+			return false
+		}
+
+		if !primaryLSN.Valid {
+			t.Logf("isReplicaUpToDate: Primary LSN is null, cannot check replicas")
+			return false
+		}
+
+		t.Logf("isReplicaUpToDate: Primary LSN = %q", primaryLSN.String)
 
 		for i, replica := range replicas {
 			var result sql.NullBool
 			var receiveLSN, replayLSN sql.NullString
 
-			// Query both LSN values for debugging
-			// We use <= instead of = to check if a replica is caught up because:
-			// 1. Normally, receive_lsn = replay_lsn when a replica is fully caught up
-			// 2. In certain scenarios (failover, recovery, etc.), replay_lsn can advance beyond
-			//    receive_lsn while the replica is still considered "caught up"
-			// The inequality check handles both the normal case and these edge cases correctly.
+			// Check if replica has caught up to the primary's LSN
+			// We check both that the replica has processed what it received AND that it has received up to the
+			// primary's current position
 			row := replica.QueryRowContext(
 				ctx,
-				"SELECT pg_last_wal_receive_lsn(), pg_last_wal_replay_lsn(), pg_last_wal_receive_lsn() <= pg_last_wal_replay_lsn() AS is_caught_up;",
+				`SELECT
+					pg_last_wal_receive_lsn(),
+					pg_last_wal_replay_lsn(),
+					pg_last_wal_receive_lsn() >= $1::pg_lsn AND
+					pg_last_wal_receive_lsn() <= pg_last_wal_replay_lsn() AS is_caught_up;`,
+				primaryLSN.String,
 			)
 
 			err := row.Scan(&receiveLSN, &replayLSN, &result)
 			if err != nil {
-				t.Logf("FLAKY_TEST_DEBUG: isReplicaUpToDate: Error checking replica %d: %v", i, err)
-				require.NoError(t, err)
+				t.Logf("isReplicaUpToDate: error checking replica %d: %v", i, err)
+				return false
 			}
 
-			t.Logf("FLAKY_TEST_DEBUG: isReplicaUpToDate: Replica %d - receive_lsn=%q, replay_lsn=%q, is_caught_up=%v (valid=%v)",
+			t.Logf("isReplicaUpToDate: replica %d - receive_lsn=%q, replay_lsn=%q, is_caught_up=%v (valid=%v)",
 				i, receiveLSN.String, replayLSN.String, result.Bool, result.Valid)
 
 			// replica not in sync yet, return early
 			if !result.Valid || !result.Bool {
-				t.Logf("FLAKY_TEST_DEBUG: isReplicaUpToDate: Replica %d not in sync, returning false", i)
+				t.Logf("isReplicaUpToDate: replica %d not caught up to primary LSN %q", i, primaryLSN.String)
 				return false
 			}
 		}
 
-		t.Logf("FLAKY_TEST_DEBUG: isReplicaUpToDate: All %d replicas are in sync, returning true", len(replicas))
+		t.Logf("isReplicaUpToDate: all %d replicas have caught up to primary LSN %q", len(replicas), primaryLSN.String)
 		return true
 	}
 }
