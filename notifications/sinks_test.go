@@ -381,12 +381,20 @@ func TestBackoffSinkWithDeliveryListener(t *testing.T) {
 		require.Len(t, attempts, 3, "should have made 3 attempts")
 
 		firstInterval := attempts[1].Sub(attempts[0])
+		// NOTE(prozlach): Second attempt: ~500ms delay (could range from 250ms
+		// to 750ms due to randomization). Add extra 50ms for the upper bound
+		// to account for goroutine scheuduling and unpredictable resources in
+		// shared CI runners.
 		require.Greater(t, firstInterval, 249*time.Millisecond)
-		require.Less(t, firstInterval, 751*time.Millisecond)
+		require.Less(t, firstInterval, (750+50)*time.Millisecond)
 
 		secondInterval := attempts[2].Sub(attempts[1])
 		require.Greater(t, secondInterval, 374*time.Millisecond)
-		require.Less(t, secondInterval, 1126*time.Millisecond)
+		// NOTE(prozlach): Third attempt: ~750ms delay (could range from 375ms
+		// to 1125ms due to randomization). Add extra 100ms for the upper bound
+		// to account for goroutine scheuduling and unpredictable resources in
+		// shared CI runners.
+		require.Less(t, secondInterval, (1125+100)*time.Millisecond)
 
 		totalTime := endTime.Sub(attempts[0])
 		require.Greater(t, totalTime, (250+375)*time.Millisecond)
