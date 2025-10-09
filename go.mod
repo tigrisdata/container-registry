@@ -53,7 +53,7 @@ require (
 	github.com/trim21/go-redis-prometheus v0.0.0
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 	gitlab.com/gitlab-org/api/client-go v0.153.0
-	gitlab.com/gitlab-org/labkit v1.24.1
+	gitlab.com/gitlab-org/labkit v1.31.2
 	go.uber.org/automaxprocs v1.6.0
 	go.uber.org/mock v0.6.0
 	golang.org/x/crypto v0.41.0
@@ -140,6 +140,7 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.6 // indirect
 	github.com/googleapis/gax-go/v2 v2.15.0 // indirect
+	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.2 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.16.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
