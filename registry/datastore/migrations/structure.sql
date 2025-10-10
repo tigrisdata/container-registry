@@ -212,11 +212,19 @@ BEGIN
 END;
 $$;
 
+CREATE SEQUENCE public.blobs_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
 CREATE TABLE public.blobs (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 )
 PARTITION BY HASH (digest);
 
@@ -224,448 +232,512 @@ CREATE TABLE partitions.blobs_p_0 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_1 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_10 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_11 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_12 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_13 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_14 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_15 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_16 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_17 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_18 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_19 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_2 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_20 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_21 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_22 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_23 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_24 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_25 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_26 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_27 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_28 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_29 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_3 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_30 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_31 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_32 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_33 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_34 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_35 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_36 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_37 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_38 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_39 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_4 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_40 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_41 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_42 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_43 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_44 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_45 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_46 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_47 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_48 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_49 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_5 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_50 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_51 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_52 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_53 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_54 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_55 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_56 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_57 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_58 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_59 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_6 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_60 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_61 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_62 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_63 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_7 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_8 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE partitions.blobs_p_9 (
     size bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     media_type_id smallint NOT NULL,
-    digest bytea NOT NULL
+    digest bytea NOT NULL,
+    id bigint DEFAULT nextval('public.blobs_id_seq'::regclass)
 );
 
 CREATE TABLE public.gc_blobs_configurations (
