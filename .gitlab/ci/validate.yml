@@ -238,13 +238,12 @@ database:structure-sql:
     PG_FORMATTER_VERSION: "5.0"
     PG_VERSION: $PG_CURR_VERSION
   script:
-    # Install build/make deps
-    - apt-get update && apt-get -y install ca-certificates curl gnupg lsb-release
-    # Install Postgres client
+    # Install psql client tools
+    - apt update && apt -y install curl ca-certificates postgresql-common
     - install -d /usr/share/postgresql-common/pgdg
     - curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
-    - sh -c "echo 'deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main' > /etc/apt/sources.list.d/pgdg.list"
-    - apt-get update && apt-get -y install postgresql-client-$PG_VERSION
+    - . /etc/os-release && sh -c "echo 'deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $VERSION_CODENAME-pgdg main' > /etc/apt/sources.list.d/pgdg.list"
+    - apt update && apt -y install postgresql-client-${PG_VERSION}
     # Install pgFormatter
     - wget -qO- https://github.com/darold/pgFormatter/archive/refs/tags/v$PG_FORMATTER_VERSION.tar.gz | tar xz
     - cd pgFormatter-$PG_FORMATTER_VERSION

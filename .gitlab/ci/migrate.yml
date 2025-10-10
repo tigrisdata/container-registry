@@ -87,10 +87,10 @@ migrate:init-db-with-last-release:
     - migrate:init-db-with-last-release  # Ensure the artifact from this job is available
   script:
     # Install psql client tools
-    - apt-get update && apt-get install -y lsb-release
-    - apt update && apt -y install gnupg2 wget nano
-    - sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
-    - curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc |  gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg
+    - apt update && apt -y install curl ca-certificates postgresql-common
+    - install -d /usr/share/postgresql-common/pgdg
+    - curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
+    - . /etc/os-release && sh -c "echo 'deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $VERSION_CODENAME-pgdg main' > /etc/apt/sources.list.d/pgdg.list"
     - apt update && apt -y install postgresql-client-${PG_CURR_VERSION}
     - echo "Restoring database from dump..."
     - PGPASSWORD=$POSTGRES_PASSWORD psql -h ${REGISTRY_DATABASE_HOST} -U $POSTGRES_USER -d $APP_DATABASE -f db_dump.sql  # Load the dump file into PostgreSQL
