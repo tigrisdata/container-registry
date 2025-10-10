@@ -104,6 +104,20 @@ func overrideDynamicData(tb testing.TB, actual []byte) []byte {
 	return actual
 }
 
+// overrideSequentialData is required to override all sequence columns that change with every test run. This is needed to ensure
+// that we can consistently compare the output of a database dump with the stored reference snapshots (.golden files)
+func overrideSequentialData(tb testing.TB, actual []byte, columns ...string) []byte {
+	tb.Helper()
+
+	// the sequential column data for some tables changes depending on the posgres sequence name, staring value and increment value
+	for _, column := range columns {
+		re := regexp.MustCompile(fmt.Sprintf(`"%s":\d+`, column))
+		actual = re.ReplaceAllLiteral(actual, []byte(fmt.Sprintf(`"%s":1`, column)))
+	}
+
+	return actual
+}
+
 func newImporter(t *testing.T, db *datastore.DB, opts ...datastore.ImporterOption) *datastore.Importer {
 	t.Helper()
 
@@ -134,6 +148,12 @@ func validateImport(t *testing.T, db *datastore.DB) {
 			// see testdata/golden/<test name>/<table>.golden
 			p := filepath.Join(suite.goldenPath, t.Name()+".golden")
 			actual = overrideDynamicData(t, actual)
+			// for blobs table, we do not need to compare the sequential `id` column populated by the database
+			// because while it is sequentially incremented, it's not purely deterministic
+			// as it depends on the test order and database state.
+			if tt == testutil.BlobsTable {
+				actual = overrideSequentialData(t, actual, "id")
+			}
 			testutil.CompareWithGoldenFile(t, p, actual, *create, *update)
 		})
 	}
