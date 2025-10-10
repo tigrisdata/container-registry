@@ -52,7 +52,7 @@ require (
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.38.0
 	github.com/trim21/go-redis-prometheus v0.0.0
 	github.com/vmihailenco/msgpack/v5 v5.4.1
-	gitlab.com/gitlab-org/api/client-go v0.153.0
+	gitlab.com/gitlab-org/api/client-go v0.156.0
 	gitlab.com/gitlab-org/labkit v1.31.2
 	go.uber.org/automaxprocs v1.6.0
 	go.uber.org/mock v0.6.0
