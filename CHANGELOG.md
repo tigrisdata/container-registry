@@ -1,3 +1,23 @@
+## [4.29.0](https://gitlab.com/gitlab-org/container-registry/compare/v4.28.0-gitlab...v4.29.0) (2025-10-13)
+
+
+### Features
+
+* add docker attestation media types ([139ef50](https://gitlab.com/gitlab-org/container-registry/commit/139ef50d14028f3f5a3389c5e570d1aaa3dc7e08))
+* add docker compose media types ([141d386](https://gitlab.com/gitlab-org/container-registry/commit/141d3860e8a9d42577e27dfe5d042b4794fc6289))
+* add new cosign media types ([90e65c7](https://gitlab.com/gitlab-org/container-registry/commit/90e65c74fdc72fdfa096954c2f129638b8e292f7))
+* **api:** enable DLB for OCI read manifest endpoint ([b5fc6f8](https://gitlab.com/gitlab-org/container-registry/commit/b5fc6f8f0ca2a3c7d0cc6eac8fe15d7ba5565f02))
+* **bbm:** add null batching strategy ([137d130](https://gitlab.com/gitlab-org/container-registry/commit/137d1304159e266cd3c43c17d4f41e284ab8c8d3))
+* **datastore:** add id column to blobs table ([dbaaab8](https://gitlab.com/gitlab-org/container-registry/commit/dbaaab8f9ff2b51d1308c3273ea5e2a8496d21a2))
+* expose Prometheus metrics for the count of overdue GC tasks ([d92df3f](https://gitlab.com/gitlab-org/container-registry/commit/d92df3f30edfa0196f824feae3b33469b4a8470e))
+* expose Prometheus metrics for the size of the GC manifests queue ([401aaac](https://gitlab.com/gitlab-org/container-registry/commit/401aaac52a3ed71a1fd6e9872e6222e14e546ff7))
+* **registry:** enable REGISTRY_FF_ENFORCE_LOCKFILES by default ([2123002](https://gitlab.com/gitlab-org/container-registry/commit/2123002d1c16a81bf4a601356479e33032b75705))
+
+
+### Reverts
+
+* **cache:** remove dual cache code ([5eb8a8c](https://gitlab.com/gitlab-org/container-registry/commit/5eb8a8cde90d1d06e50294a461a53d56d92c5308))
+
 ## [4.28.0](https://gitlab.com/gitlab-org/container-registry/compare/v4.27.0-gitlab...v4.28.0) (2025-09-23)
 
 
