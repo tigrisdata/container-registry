@@ -140,21 +140,21 @@ func newImporterWithRoot(t *testing.T, db *datastore.DB, root string, opts ...da
 
 // Dump each table as JSON and compare the output against reference snapshots (.golden files)
 func validateImport(t *testing.T, db *datastore.DB) {
-	for _, tt := range testutil.AllTables {
-		t.Run(string(tt), func(t *testing.T) {
-			actual, err := tt.DumpAsJSON(suite.ctx, db)
-			require.NoError(t, err, "error dumping table")
+	for _, tn := range testutil.AllTables {
+		t.Run(string(tn), func(tt *testing.T) {
+			actual, err := tn.DumpAsJSON(suite.ctx, db)
+			require.NoError(tt, err, "error dumping table")
 
 			// see testdata/golden/<test name>/<table>.golden
-			p := filepath.Join(suite.goldenPath, t.Name()+".golden")
-			actual = overrideDynamicData(t, actual)
+			p := filepath.Join(suite.goldenPath, tt.Name()+".golden")
+			actual = overrideDynamicData(tt, actual)
 			// for blobs table, we do not need to compare the sequential `id` column populated by the database
 			// because while it is sequentially incremented, it's not purely deterministic
 			// as it depends on the test order and database state.
-			if tt == testutil.BlobsTable {
-				actual = overrideSequentialData(t, actual, "id")
+			if tn == testutil.BlobsTable {
+				actual = overrideSequentialData(tt, actual, "id")
 			}
-			testutil.CompareWithGoldenFile(t, p, actual, *create, *update)
+			testutil.CompareWithGoldenFile(tt, p, actual, *create, *update)
 		})
 	}
 }
@@ -836,13 +836,13 @@ func TestImporter_PreImportAll_LastPublishedAtDateIsRecent(t *testing.T) {
 	upperBound := time.Now().Add(5 * time.Minute)
 
 	for _, repo := range allRepos {
-		t.Run(repo.Path, func(t *testing.T) {
+		t.Run(repo.Path, func(tt *testing.T) {
 			r, err := repoStore.FindByPath(suite.ctx, repo.Path)
-			require.NoError(t, err)
+			require.NoError(tt, err)
 
-			require.NotNil(t, r.LastPublishedAt)
-			require.True(t, r.LastPublishedAt.Valid)
-			assert.WithinRange(t, r.LastPublishedAt.Time, lowerBound, upperBound)
+			require.NotNil(tt, r.LastPublishedAt)
+			require.True(tt, r.LastPublishedAt.Valid)
+			assert.WithinRange(tt, r.LastPublishedAt.Time, lowerBound, upperBound)
 		})
 	}
 }
@@ -861,12 +861,12 @@ func TestImporter_PreImportAll_SkipRecent(t *testing.T) {
 	// Collect last published at times.
 	lastPublishedByRepo := make(map[string]time.Time)
 	for _, repo := range allRepos {
-		t.Run(fmt.Sprintf("%s-validate-last-published-at", repo.Path), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s-validate-last-published-at", repo.Path), func(tt *testing.T) {
 			r, err := repoStore.FindByPath(suite.ctx, repo.Path)
-			require.NoError(t, err)
+			require.NoError(tt, err)
 
-			require.NotNil(t, r.LastPublishedAt)
-			require.True(t, r.LastPublishedAt.Valid)
+			require.NotNil(tt, r.LastPublishedAt)
+			require.True(tt, r.LastPublishedAt.Valid)
 
 			lastPublishedByRepo[repo.Path] = r.LastPublishedAt.Time
 		})
@@ -881,14 +881,14 @@ func TestImporter_PreImportAll_SkipRecent(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, repo := range allRepos {
-		t.Run(fmt.Sprintf("%s-skips-already-imported", repo.Path), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s-skips-already-imported", repo.Path), func(tt *testing.T) {
 			r, err := repoStore.FindByPath(suite.ctx, repo.Path)
-			require.NoError(t, err)
+			require.NoError(tt, err)
 
-			require.NotNil(t, r.LastPublishedAt)
-			require.True(t, r.LastPublishedAt.Valid)
+			require.NotNil(tt, r.LastPublishedAt)
+			require.True(tt, r.LastPublishedAt.Valid)
 
-			assert.Equal(t, lastPublishedByRepo[repo.Path], r.LastPublishedAt.Time)
+			assert.Equal(tt, lastPublishedByRepo[repo.Path], r.LastPublishedAt.Time)
 		})
 	}
 
@@ -899,14 +899,14 @@ func TestImporter_PreImportAll_SkipRecent(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, repo := range allRepos {
-		t.Run(fmt.Sprintf("%s-can-disable-skipping", repo.Path), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s-can-disable-skipping", repo.Path), func(tt *testing.T) {
 			r, err := repoStore.FindByPath(suite.ctx, repo.Path)
-			require.NoError(t, err)
+			require.NoError(tt, err)
 
-			require.NotNil(t, r.LastPublishedAt)
-			require.True(t, r.LastPublishedAt.Valid)
+			require.NotNil(tt, r.LastPublishedAt)
+			require.True(tt, r.LastPublishedAt.Valid)
 
-			require.Less(t, lastPublishedByRepo[repo.Path], r.LastPublishedAt.Time)
+			require.Less(tt, lastPublishedByRepo[repo.Path], r.LastPublishedAt.Time)
 		})
 	}
 }

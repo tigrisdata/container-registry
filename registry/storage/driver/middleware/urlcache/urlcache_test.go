@@ -429,9 +429,9 @@ func TestCacheEntrySize(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(tc.name, func(tt *testing.T) {
 			size := tc.entry.size()
-			assert.Equal(t, tc.expectedSize, size)
+			assert.Equal(tt, tc.expectedSize, size)
 		})
 	}
 }

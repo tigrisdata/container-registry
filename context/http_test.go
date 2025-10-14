@@ -321,12 +321,12 @@ func TestWithCFRayID(t *testing.T) {
 		},
 	}
 	t.Logf("Running Test %s", t.Name())
-	for _, test := range testcases {
-		t.Run(test.name, func(t *testing.T) {
+	for _, tc := range testcases {
+		t.Run(tc.name, func(tt *testing.T) {
 			ctx := context.TODO()
-			req := generateRequestWithHeaders(test.requestHeaders)
+			req := generateRequestWithHeaders(tc.requestHeaders)
 			actualContext := WithCFRayID(ctx, req)
-			require.Equal(t, test.expectedContextValue, actualContext.Value(CFRayIDLogKey))
+			require.Equal(tt, tc.expectedContextValue, actualContext.Value(CFRayIDLogKey))
 		})
 	}
 }

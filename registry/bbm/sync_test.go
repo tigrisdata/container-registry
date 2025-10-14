@@ -31,7 +31,7 @@ var (
 func TestSyncWorker_FindJob_Errors(t *testing.T) {
 	ctx := context.TODO()
 
-	tt := []struct {
+	testCases := []struct {
 		name       string
 		setupMocks func(ctrl *gomock.Controller) datastore.BackgroundMigrationStore
 	}{
@@ -199,14 +199,14 @@ func TestSyncWorker_FindJob_Errors(t *testing.T) {
 		},
 	}
 
-	for _, test := range tt {
-		t.Run(test.name, func(t *testing.T) {
-			test := test
-			t.Parallel()
-			bbmStore := test.setupMocks(gomock.NewController(t))
+	for _, tc := range testCases {
+		t.Run(tc.name, func(tt *testing.T) {
+			test := tc
+			tt.Parallel()
+			bbmStore := test.setupMocks(gomock.NewController(tt))
 			job, err := NewSyncWorker(nil).FindJob(ctx, bbmStore)
-			require.ErrorIs(t, err, errAnError)
-			require.Nil(t, job)
+			require.ErrorIs(tt, err, errAnError)
+			require.Nil(tt, job)
 		})
 	}
 }
@@ -215,7 +215,7 @@ func TestSyncWorker_FindJob_Errors(t *testing.T) {
 func TestSyncWorker_ExecuteJob_Errors(t *testing.T) {
 	ctx := context.TODO()
 
-	tt := []struct {
+	testCases := []struct {
 		name        string
 		job         *models.BackgroundMigrationJob
 		setupMocks  func(ctrl *gomock.Controller) (*SyncWorker, datastore.BackgroundMigrationStore)
@@ -275,15 +275,15 @@ func TestSyncWorker_ExecuteJob_Errors(t *testing.T) {
 		},
 	}
 
-	for _, test := range tt {
-		t.Run(test.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(tt *testing.T) {
+			ctrl := gomock.NewController(tt)
 			defer ctrl.Finish()
 
-			worker, bbmStore := test.setupMocks(ctrl)
-			err := worker.ExecuteJob(ctx, bbmStore, test.job)
-			require.Error(t, err)
-			require.Equal(t, test.expectedErr, err)
+			worker, bbmStore := tc.setupMocks(ctrl)
+			err := worker.ExecuteJob(ctx, bbmStore, tc.job)
+			require.Error(tt, err)
+			require.Equal(tt, tc.expectedErr, err)
 		})
 	}
 }
@@ -293,7 +293,7 @@ func TestSyncWorker_GrabLock(t *testing.T) {
 	ctx := context.TODO()
 	worker := NewSyncWorker(nil)
 
-	tt := []struct {
+	testCases := []struct {
 		name        string
 		setupMocks  func(ctrl *gomock.Controller) datastore.BackgroundMigrationStore
 		expectedErr error
@@ -318,14 +318,14 @@ func TestSyncWorker_GrabLock(t *testing.T) {
 		},
 	}
 
-	for _, test := range tt {
-		t.Run(test.name, func(t *testing.T) {
-			bbmStore := test.setupMocks(gomock.NewController(t))
+	for _, tc := range testCases {
+		t.Run(tc.name, func(tt *testing.T) {
+			bbmStore := tc.setupMocks(gomock.NewController(tt))
 			err := worker.GrabLock(ctx, bbmStore)
-			if test.expectedErr != nil {
-				require.ErrorIs(t, err, test.expectedErr)
+			if tc.expectedErr != nil {
+				require.ErrorIs(tt, err, tc.expectedErr)
 			} else {
-				require.NoError(t, err)
+				require.NoError(tt, err)
 			}
 		})
 	}
@@ -340,7 +340,7 @@ func TestSyncWorker_FindJob(t *testing.T) {
 		JobName: workFunctionName,
 	}
 
-	tt := []struct {
+	testCases := []struct {
 		name        string
 		setupMocks  func(ctrl *gomock.Controller) datastore.BackgroundMigrationStore
 		worker      *SyncWorker
@@ -515,14 +515,14 @@ func TestSyncWorker_FindJob(t *testing.T) {
 		},
 	}
 
-	for _, test := range tt {
-		t.Run(test.name, func(t *testing.T) {
-			test := test
-			t.Parallel()
-			bbmStore := test.setupMocks(gomock.NewController(t))
+	for _, tc := range testCases {
+		t.Run(tc.name, func(tt *testing.T) {
+			test := tc
+			tt.Parallel()
+			bbmStore := test.setupMocks(gomock.NewController(tt))
 			job, err := test.worker.FindJob(ctx, bbmStore)
-			require.NoError(t, err)
-			require.Equal(t, test.expectedJob, job)
+			require.NoError(tt, err)
+			require.Equal(tt, test.expectedJob, job)
 		})
 	}
 }
@@ -551,7 +551,7 @@ func TestSyncWorker_ExecuteJob(t *testing.T) {
 
 // TestSyncWorker_Run tests the run method of the sync worker.
 func TestSyncWorker_Run(t *testing.T) {
-	tests := []struct {
+	testCases := []struct {
 		name       string
 		setupMocks func(ctrl *gomock.Controller) *SyncWorker
 		expectErr  bool
@@ -723,16 +723,16 @@ func TestSyncWorker_Run(t *testing.T) {
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			test := test
-			t.Parallel()
-			worker := test.setupMocks(gomock.NewController(t))
+	for _, tc := range testCases {
+		t.Run(tc.name, func(tt *testing.T) {
+			test := tc
+			tt.Parallel()
+			worker := test.setupMocks(gomock.NewController(tt))
 			err := worker.runImpl(context.TODO())
 			if test.expectErr {
-				require.Error(t, err)
+				require.Error(tt, err)
 			} else {
-				require.NoError(t, err)
+				require.NoError(tt, err)
 			}
 		})
 	}
@@ -745,7 +745,7 @@ func TestNewSyncWorkerOpts(t *testing.T) {
 	defaultWorkMap, err := makeWorkMap(AllWork())
 	require.NoError(t, err)
 
-	tests := []struct {
+	testCases := []struct {
 		name           string
 		opts           []SyncWorkerOption
 		expectedWorker *SyncWorker
@@ -871,27 +871,27 @@ func TestNewSyncWorkerOpts(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			actual := NewSyncWorker(nil, tt.opts...)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(tt *testing.T) {
+			actual := NewSyncWorker(nil, tc.opts...)
 
-			for key, expectedWork := range tt.expectedWorker.work {
+			for key, expectedWork := range tc.expectedWorker.work {
 				actualWork, ok := actual.work[key]
-				require.True(t, ok, "actual work does not contain key: %s", key)
-				require.Equal(t, expectedWork.Name, actualWork.Name, "work function names do not match for key: %s", key)
-				requireSameFunction(t, expectedWork.Do, actualWork.Do)
+				require.True(tt, ok, "actual work does not contain key: %s", key)
+				require.Equal(tt, expectedWork.Name, actualWork.Name, "work function names do not match for key: %s", key)
+				requireSameFunction(tt, expectedWork.Do, actualWork.Do)
 			}
-			require.Equal(t, tt.expectedWorker.logger, actual.logger)
-			require.Equal(t, tt.expectedWorker.db, actual.db)
-			require.Equal(t, tt.expectedWorker.maxJobAttempt, actual.maxJobAttempt)
-			require.Equal(t, tt.expectedWorker.maxJobPerBatch, actual.maxJobPerBatch)
-			require.Equal(t, tt.expectedWorker.maxBatchTimeout, actual.maxBatchTimeout)
-			require.Equal(t, tt.expectedWorker.lockWaitTimeout, actual.lockWaitTimeout)
-			require.Equal(t, tt.expectedWorker.jobTimeout, actual.jobTimeout)
+			require.Equal(tt, tc.expectedWorker.logger, actual.logger)
+			require.Equal(tt, tc.expectedWorker.db, actual.db)
+			require.Equal(tt, tc.expectedWorker.maxJobAttempt, actual.maxJobAttempt)
+			require.Equal(tt, tc.expectedWorker.maxJobPerBatch, actual.maxJobPerBatch)
+			require.Equal(tt, tc.expectedWorker.maxBatchTimeout, actual.maxBatchTimeout)
+			require.Equal(tt, tc.expectedWorker.lockWaitTimeout, actual.lockWaitTimeout)
+			require.Equal(tt, tc.expectedWorker.jobTimeout, actual.jobTimeout)
 			// the best we can do here is compare the type and not the underlying object since the underlying object
 			// of the interface contains function pointers and the pointer values are not comparable with testify alone.
-			require.IsType(t, tt.expectedWorker.wh, actual.wh)
-			require.Equal(t, tt.expectedWorker.lastRunCompletedBBMs, actual.lastRunCompletedBBMs)
+			require.IsType(tt, tc.expectedWorker.wh, actual.wh)
+			require.Equal(tt, tc.expectedWorker.lastRunCompletedBBMs, actual.lastRunCompletedBBMs)
 		})
 	}
 }

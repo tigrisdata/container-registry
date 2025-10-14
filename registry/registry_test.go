@@ -318,7 +318,7 @@ func assertMonitoringResponse(t *testing.T, scheme, addr, targetPath string, exp
 }
 
 func TestConfigureMonitoring(t *testing.T) {
-	tcs := map[string]struct {
+	testCases := map[string]struct {
 		config            func() *configuration.Configuration
 		monitorConfigFunc func(ttt *testing.T, config *configuration.Configuration) func()
 		assertionPaths    map[string]int
@@ -399,7 +399,7 @@ func TestConfigureMonitoring(t *testing.T) {
 		},
 	}
 
-	for tn, tc := range tcs {
+	for tn, tc := range testCases {
 		for _, scheme := range []string{"http", "https"} {
 			t.Run(fmt.Sprintf("%s_%s", tn, scheme), func(tt *testing.T) {
 				config := tc.config()
@@ -425,7 +425,7 @@ func TestConfigureMonitoring(t *testing.T) {
 }
 
 func Test_validate_redirect(t *testing.T) {
-	tests := []struct {
+	testCases := []struct {
 		name          string
 		redirect      map[string]any
 		expectedError error
@@ -494,20 +494,20 @@ func Test_validate_redirect(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(tt *testing.T) {
 			cfg := &configuration.Configuration{
 				Storage: make(map[string]configuration.Parameters),
 			}
 
-			if tt.redirect != nil {
-				cfg.Storage["redirect"] = tt.redirect
+			if tc.redirect != nil {
+				cfg.Storage["redirect"] = tc.redirect
 			}
 
-			if tt.expectedError != nil {
-				require.EqualError(t, validate(cfg), tt.expectedError.Error())
+			if tc.expectedError != nil {
+				require.EqualError(tt, validate(cfg), tc.expectedError.Error())
 			} else {
-				require.NoError(t, validate(cfg))
+				require.NoError(tt, validate(cfg))
 			}
 		})
 	}

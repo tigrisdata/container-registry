@@ -730,11 +730,11 @@ func TestDBFaultTolerance_ConnectionPoolSaturation(t *testing.T) {
 	// spawn 10 times more clients than max pool open connections
 	for i := 0; i < 10*poolMaxSize; i++ {
 		wg.Add(1)
-		t.Run(fmt.Sprintf("client %d", i), func(t *testing.T) {
+		t.Run(fmt.Sprintf("client %d", i), func(tt *testing.T) {
 			go func() {
 				// If there are no available connections, database/sql should queue connection requests until they
 				// can be assigned, so all requests should succeed.
-				assert.NoError(t, assertGetResponseErr(u, http.StatusOK))
+				assert.NoError(tt, assertGetResponseErr(u, http.StatusOK))
 				wg.Done()
 			}()
 		})

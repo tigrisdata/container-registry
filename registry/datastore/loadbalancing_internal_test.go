@@ -108,9 +108,9 @@ func TestDBLoadBalancer_Primary(t *testing.T) {
 func TestDBLoadBalancer_Replica(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("no replicas falls back to primary", func(t *testing.T) {
+	t.Run("no replicas falls back to primary", func(tt *testing.T) {
 		// Create primary DB
-		primaryMockDB, primaryDB := createTestDB(t, "primary")
+		primaryMockDB, primaryDB := createTestDB(tt, "primary")
 
 		// Create load balancer with no replicas
 		lb := &DBLoadBalancer{
@@ -120,15 +120,15 @@ func TestDBLoadBalancer_Replica(t *testing.T) {
 
 		// Should return primary when no replicas available
 		db := lb.Replica(ctx)
-		require.Equal(t, primaryMockDB, db.DB)
+		require.Equal(tt, primaryMockDB, db.DB)
 	})
 
-	t.Run("round-robin selection with multiple replicas", func(t *testing.T) {
+	t.Run("round-robin selection with multiple replicas", func(tt *testing.T) {
 		// Create primary and replica DBs
-		_, primaryDB := createTestDB(t, "primary")
-		replica1MockDB, replica1 := createTestDB(t, "replica1")
-		replica2MockDB, replica2 := createTestDB(t, "replica2")
-		replica3MockDB, replica3 := createTestDB(t, "replica3")
+		_, primaryDB := createTestDB(tt, "primary")
+		replica1MockDB, replica1 := createTestDB(tt, "replica1")
+		replica2MockDB, replica2 := createTestDB(tt, "replica2")
+		replica3MockDB, replica3 := createTestDB(tt, "replica3")
 
 		// Create load balancer with multiple replicas
 		lb := &DBLoadBalancer{
@@ -138,27 +138,27 @@ func TestDBLoadBalancer_Replica(t *testing.T) {
 
 		// First call should return first replica
 		db1 := lb.Replica(ctx)
-		require.Equal(t, replica1MockDB, db1.DB)
+		require.Equal(tt, replica1MockDB, db1.DB)
 
 		// Second call should return second replica
 		db2 := lb.Replica(ctx)
-		require.Equal(t, replica2MockDB, db2.DB)
+		require.Equal(tt, replica2MockDB, db2.DB)
 
 		// Third call should return third replica
 		db3 := lb.Replica(ctx)
-		require.Equal(t, replica3MockDB, db3.DB)
+		require.Equal(tt, replica3MockDB, db3.DB)
 
 		// Fourth call should wrap around to first replica
 		db4 := lb.Replica(ctx)
-		require.Equal(t, replica1MockDB, db4.DB)
+		require.Equal(tt, replica1MockDB, db4.DB)
 	})
 
-	t.Run("skips quarantined replicas", func(t *testing.T) {
+	t.Run("skips quarantined replicas", func(tt *testing.T) {
 		// Create primary and replica DBs
-		_, primaryDB := createTestDB(t, "primary")
-		replica1MockDB, replica1 := createTestDB(t, "replica1")
-		_, replica2 := createTestDB(t, "replica2") // we'll quarantine this one
-		replica3MockDB, replica3 := createTestDB(t, "replica3")
+		_, primaryDB := createTestDB(tt, "primary")
+		replica1MockDB, replica1 := createTestDB(tt, "replica1")
+		_, replica2 := createTestDB(tt, "replica2") // we'll quarantine this one
+		replica3MockDB, replica3 := createTestDB(tt, "replica3")
 
 		// Create mock lag tracker
 		tracker := newMockLagTracker()
@@ -183,22 +183,22 @@ func TestDBLoadBalancer_Replica(t *testing.T) {
 
 		// First call should return first replica
 		db1 := lb.Replica(ctx)
-		require.Equal(t, replica1MockDB, db1.DB)
+		require.Equal(tt, replica1MockDB, db1.DB)
 
 		// Second call should skip quarantined replica2 and return replica3
 		db2 := lb.Replica(ctx)
-		require.Equal(t, replica3MockDB, db2.DB)
+		require.Equal(tt, replica3MockDB, db2.DB)
 
 		// Third call should wrap around to replica1
 		db3 := lb.Replica(ctx)
-		require.Equal(t, replica1MockDB, db3.DB)
+		require.Equal(tt, replica1MockDB, db3.DB)
 	})
 
-	t.Run("falls back to primary when all replicas quarantined", func(t *testing.T) {
+	t.Run("falls back to primary when all replicas quarantined", func(tt *testing.T) {
 		// Create primary and replica DBs
-		primaryMockDB, primaryDB := createTestDB(t, "primary")
-		_, replica1 := createTestDB(t, "replica1")
-		_, replica2 := createTestDB(t, "replica2")
+		primaryMockDB, primaryDB := createTestDB(tt, "primary")
+		_, replica1 := createTestDB(tt, "replica1")
+		_, replica2 := createTestDB(tt, "replica2")
 
 		// Create mock lag tracker and quarantine all replicas
 		tracker := newMockLagTracker()
@@ -231,15 +231,15 @@ func TestDBLoadBalancer_Replica(t *testing.T) {
 
 		// Should fall back to primary when all replicas are quarantined
 		db := lb.Replica(ctx)
-		require.Equal(t, primaryMockDB, db.DB)
+		require.Equal(tt, primaryMockDB, db.DB)
 	})
 
-	t.Run("index updates correctly with mixed quarantined replicas", func(t *testing.T) {
+	t.Run("index updates correctly with mixed quarantined replicas", func(tt *testing.T) {
 		// Create primary and replica DBs
-		_, primaryDB := createTestDB(t, "primary")
-		replica1MockDB, replica1 := createTestDB(t, "replica1")
-		replica2MockDB, replica2 := createTestDB(t, "replica2") // will be quarantined
-		replica3MockDB, replica3 := createTestDB(t, "replica3")
+		_, primaryDB := createTestDB(tt, "primary")
+		replica1MockDB, replica1 := createTestDB(tt, "replica1")
+		replica2MockDB, replica2 := createTestDB(tt, "replica2") // will be quarantined
+		replica3MockDB, replica3 := createTestDB(tt, "replica3")
 
 		// Create mock lag tracker
 		tracker := newMockLagTracker()
@@ -264,19 +264,19 @@ func TestDBLoadBalancer_Replica(t *testing.T) {
 
 		// First call should return replica1
 		db1 := lb.Replica(ctx)
-		require.Equal(t, replica1MockDB, db1.DB)
+		require.Equal(tt, replica1MockDB, db1.DB)
 
 		// Second call should skip quarantined replica2 and return replica3
 		db2 := lb.Replica(ctx)
-		require.Equal(t, replica3MockDB, db2.DB)
+		require.Equal(tt, replica3MockDB, db2.DB)
 
 		// Third call should return replica1 again (round-robin)
 		db3 := lb.Replica(ctx)
-		require.Equal(t, replica1MockDB, db3.DB)
+		require.Equal(tt, replica1MockDB, db3.DB)
 
 		// The index should update based on total replicas (not just available ones)
 		// Start: index=0, Calls: R1->index=1, R3->index=2, R1->index=0
-		require.Equal(t, 0, lb.replicaIndex, "Index should wrap around to 0")
+		require.Equal(tt, 0, lb.replicaIndex, "Index should wrap around to 0")
 
 		// Now reintegrate replica2
 		tracker.lagInfo[replica2.Address()].Quarantined = false
@@ -284,15 +284,15 @@ func TestDBLoadBalancer_Replica(t *testing.T) {
 
 		// Fourth call should return replica1 (index=0)
 		db4 := lb.Replica(ctx)
-		require.Equal(t, replica1MockDB, db4.DB)
+		require.Equal(tt, replica1MockDB, db4.DB)
 
 		// Fifth call should return replica2 which is now available (index=1)
 		db5 := lb.Replica(ctx)
-		require.Equal(t, replica2MockDB, db5.DB)
+		require.Equal(tt, replica2MockDB, db5.DB)
 
 		// Sixth call should return replica3 (index=2)
 		db6 := lb.Replica(ctx)
-		require.Equal(t, replica3MockDB, db6.DB)
+		require.Equal(tt, replica3MockDB, db6.DB)
 	})
 }
 
@@ -451,7 +451,7 @@ func TestDBLoadBalancer_ThrottledResolveReplicas(t *testing.T) {
 }
 
 func TestDBLoadBalancer_IsConnectivityError(t *testing.T) {
-	tests := []struct {
+	testCases := []struct {
 		name     string
 		err      error
 		expected bool
@@ -503,24 +503,24 @@ func TestDBLoadBalancer_IsConnectivityError(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := isConnectivityError(tt.err)
-			require.Equal(t, tt.expected, result)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(tt *testing.T) {
+			result := isConnectivityError(tc.err)
+			require.Equal(tt, tc.expected, result)
 		})
 	}
 }
 
 func TestNewLivenessProber(t *testing.T) {
-	t.Run("default options", func(t *testing.T) {
+	t.Run("default options", func(tt *testing.T) {
 		p := NewLivenessProber()
-		require.NotNil(t, p)
-		require.Equal(t, minLivenessProbeInterval, p.minInterval)
-		require.Equal(t, livenessProbeTimeout, p.timeout)
-		require.Nil(t, p.onUnhealthy)
+		require.NotNil(tt, p)
+		require.Equal(tt, minLivenessProbeInterval, p.minInterval)
+		require.Equal(tt, livenessProbeTimeout, p.timeout)
+		require.Nil(tt, p.onUnhealthy)
 	})
 
-	t.Run("custom options", func(t *testing.T) {
+	t.Run("custom options", func(tt *testing.T) {
 		var callbackCalled bool
 		var callbackDB *DB
 
@@ -533,50 +533,50 @@ func TestNewLivenessProber(t *testing.T) {
 			}),
 		)
 
-		require.NotNil(t, p)
-		require.Equal(t, 123*time.Millisecond, p.minInterval)
-		require.Equal(t, 456*time.Millisecond, p.timeout)
-		require.NotNil(t, p.onUnhealthy)
+		require.NotNil(tt, p)
+		require.Equal(tt, 123*time.Millisecond, p.minInterval)
+		require.Equal(tt, 456*time.Millisecond, p.timeout)
+		require.NotNil(tt, p.onUnhealthy)
 
 		// Test callback directly
 		mockDB := &DB{DSN: &DSN{Host: "test-db"}}
 		p.onUnhealthy(context.Background(), mockDB)
-		require.True(t, callbackCalled, "Callback should be called")
-		require.Equal(t, mockDB, callbackDB, "Callback should receive the input DB")
+		require.True(tt, callbackCalled, "Callback should be called")
+		require.Equal(tt, mockDB, callbackDB, "Callback should receive the input DB")
 	})
 }
 
 func TestLivenessProber_BeginCheck(t *testing.T) {
-	t.Run("same host", func(t *testing.T) {
+	t.Run("same host", func(tt *testing.T) {
 		prober := NewLivenessProber(
 			WithMinProbeInterval(50 * time.Millisecond),
 		)
 		hostAddr := "test-db:5432"
 
-		require.True(t, prober.BeginCheck(hostAddr), "First probe should be allowed")
-		require.False(t, prober.BeginCheck(hostAddr), "Second immediate probe should be throttled")
+		require.True(tt, prober.BeginCheck(hostAddr), "First probe should be allowed")
+		require.False(tt, prober.BeginCheck(hostAddr), "Second immediate probe should be throttled")
 		time.Sleep(30 * time.Millisecond)
-		require.False(t, prober.BeginCheck(hostAddr), "Probe should be throttled when within interval")
+		require.False(tt, prober.BeginCheck(hostAddr), "Probe should be throttled when within interval")
 		time.Sleep(30 * time.Millisecond)
-		require.True(t, prober.BeginCheck(hostAddr), "Probe should be allowed after interval expires")
+		require.True(tt, prober.BeginCheck(hostAddr), "Probe should be allowed after interval expires")
 	})
 
-	t.Run("different hosts", func(t *testing.T) {
+	t.Run("different hosts", func(tt *testing.T) {
 		prober := NewLivenessProber(
 			WithMinProbeInterval(50 * time.Millisecond),
 		)
 
-		require.True(t, prober.BeginCheck("host1:5432"), "First host should be allowed")
-		require.True(t, prober.BeginCheck("host2:5432"), "Second host should be allowed")
-		require.False(t, prober.BeginCheck("host1:5432"), "First host should be throttled")
-		require.False(t, prober.BeginCheck("host2:5432"), "Second host should be throttled")
+		require.True(tt, prober.BeginCheck("host1:5432"), "First host should be allowed")
+		require.True(tt, prober.BeginCheck("host2:5432"), "Second host should be allowed")
+		require.False(tt, prober.BeginCheck("host1:5432"), "First host should be throttled")
+		require.False(tt, prober.BeginCheck("host2:5432"), "Second host should be throttled")
 	})
 }
 
 func TestLivenessProber_Probe(t *testing.T) {
-	t.Run("successful", func(t *testing.T) {
+	t.Run("successful", func(tt *testing.T) {
 		dbMock, sqlMock, err := sqlmock.New(sqlmock.MonitorPingsOption(true))
-		require.NoError(t, err)
+		require.NoError(tt, err)
 		defer dbMock.Close()
 
 		db := &DB{
@@ -596,13 +596,13 @@ func TestLivenessProber_Probe(t *testing.T) {
 		sqlMock.ExpectPing().WillReturnError(nil)
 		prober.Probe(context.Background(), db)
 
-		require.False(t, callbackCalled, "Callback should not be called for successful probe")
-		require.NoError(t, sqlMock.ExpectationsWereMet())
+		require.False(tt, callbackCalled, "Callback should not be called for successful probe")
+		require.NoError(tt, sqlMock.ExpectationsWereMet())
 	})
 
-	t.Run("failed", func(t *testing.T) {
+	t.Run("failed", func(tt *testing.T) {
 		dbMock, sqlMock, err := sqlmock.New(sqlmock.MonitorPingsOption(true))
-		require.NoError(t, err)
+		require.NoError(tt, err)
 		defer dbMock.Close()
 
 		db := &DB{
@@ -624,14 +624,14 @@ func TestLivenessProber_Probe(t *testing.T) {
 		sqlMock.ExpectPing().WillReturnError(errors.New("connection failed"))
 		prober.Probe(context.Background(), db)
 
-		require.True(t, callbackCalled, "Callback should be called for failed probe")
-		require.Equal(t, db, callbackDB, "Callback should receive the unhealthy DB")
-		require.NoError(t, sqlMock.ExpectationsWereMet())
+		require.True(tt, callbackCalled, "Callback should be called for failed probe")
+		require.Equal(tt, db, callbackDB, "Callback should receive the unhealthy DB")
+		require.NoError(tt, sqlMock.ExpectationsWereMet())
 	})
 
-	t.Run("timeout", func(t *testing.T) {
+	t.Run("timeout", func(tt *testing.T) {
 		dbMock, sqlMock, err := sqlmock.New(sqlmock.MonitorPingsOption(true))
-		require.NoError(t, err)
+		require.NoError(tt, err)
 		defer dbMock.Close()
 
 		db := &DB{
@@ -652,8 +652,8 @@ func TestLivenessProber_Probe(t *testing.T) {
 		sqlMock.ExpectPing().WillDelayFor(60 * time.Millisecond).WillReturnError(nil)
 		prober.Probe(context.Background(), db)
 
-		require.True(t, callbackCalled, "Callback should be called when probe times out")
-		require.NoError(t, sqlMock.ExpectationsWereMet())
+		require.True(tt, callbackCalled, "Callback should be called when probe times out")
+		require.NoError(tt, sqlMock.ExpectationsWereMet())
 	})
 }
 
@@ -693,14 +693,14 @@ func (r *stubDNSResolver) LookupHost(ctx context.Context, host string) ([]string
 }
 
 func TestThrottledPoolResolver(t *testing.T) {
-	t.Run("default options", func(t *testing.T) {
+	t.Run("default options", func(tt *testing.T) {
 		r := NewThrottledPoolResolver()
-		require.NotNil(t, r)
-		require.Equal(t, minResolveReplicasInterval, r.minInterval)
-		require.Nil(t, r.resolveFn)
+		require.NotNil(tt, r)
+		require.Equal(tt, minResolveReplicasInterval, r.minInterval)
+		require.Nil(tt, r.resolveFn)
 	})
 
-	t.Run("custom options", func(t *testing.T) {
+	t.Run("custom options", func(tt *testing.T) {
 		var resolveCalled bool
 		r := NewThrottledPoolResolver(
 			WithMinInterval(123*time.Millisecond),
@@ -710,14 +710,14 @@ func TestThrottledPoolResolver(t *testing.T) {
 			}),
 		)
 
-		require.NotNil(t, r)
-		require.Equal(t, 123*time.Millisecond, r.minInterval)
-		require.NotNil(t, r.resolveFn)
+		require.NotNil(tt, r)
+		require.Equal(tt, 123*time.Millisecond, r.minInterval)
+		require.NotNil(tt, r.resolveFn)
 
 		// Test resolve function
 		err := r.resolveFn(context.Background())
-		require.NoError(t, err)
-		require.True(t, resolveCalled)
+		require.NoError(tt, err)
+		require.True(tt, resolveCalled)
 	})
 }
 
@@ -752,7 +752,7 @@ func TestThrottledPoolResolver_BeginComplete(t *testing.T) {
 }
 
 func TestThrottledPoolResolver_Resolve(t *testing.T) {
-	t.Run("successful", func(t *testing.T) {
+	t.Run("successful", func(tt *testing.T) {
 		var resolveCalled bool
 		r := NewThrottledPoolResolver(
 			WithMinInterval(50*time.Millisecond),
@@ -764,27 +764,27 @@ func TestThrottledPoolResolver_Resolve(t *testing.T) {
 
 		// First resolution should succeed
 		result := r.Resolve(context.Background())
-		require.True(t, result, "Resolve should return true when resolution was performed")
-		require.True(t, resolveCalled, "Resolve function should have been called")
+		require.True(tt, result, "Resolve should return true when resolution was performed")
+		require.True(tt, resolveCalled, "Resolve function should have been called")
 
 		// Reset for next test
 		resolveCalled = false
 
 		// Immediate second resolution should be throttled
 		result = r.Resolve(context.Background())
-		require.False(t, result, "Immediate second resolution should be throttled")
-		require.False(t, resolveCalled, "Resolve function should not have been called")
+		require.False(tt, result, "Immediate second resolution should be throttled")
+		require.False(tt, resolveCalled, "Resolve function should not have been called")
 
 		// After waiting, third resolution should succeed
 		resolveCalled = false
 		time.Sleep(60 * time.Millisecond)
 
 		result = r.Resolve(context.Background())
-		require.True(t, result, "Resolution after waiting should succeed")
-		require.True(t, resolveCalled, "Resolve function should have been called")
+		require.True(tt, result, "Resolution after waiting should succeed")
+		require.True(tt, resolveCalled, "Resolve function should have been called")
 	})
 
-	t.Run("error", func(t *testing.T) {
+	t.Run("error", func(tt *testing.T) {
 		expectedErr := errors.New("resolution error")
 		r := NewThrottledPoolResolver(
 			WithResolveFunction(func(_ context.Context) error {
@@ -794,14 +794,14 @@ func TestThrottledPoolResolver_Resolve(t *testing.T) {
 
 		// Resolution should proceed but return the error
 		result := r.Resolve(context.Background())
-		require.True(t, result, "Resolve should return true even when resolution function returns an error")
+		require.True(tt, result, "Resolve should return true even when resolution function returns an error")
 
 		// Verify inProgress was cleared despite the error
-		require.False(t, r.inProgress, "inProgress should be cleared after error")
-		require.NotEqual(t, time.Time{}, r.lastComplete, "lastComplete should be updated after error")
+		require.False(tt, r.inProgress, "inProgress should be cleared after error")
+		require.NotEqual(tt, time.Time{}, r.lastComplete, "lastComplete should be updated after error")
 	})
 
-	t.Run("concurrent", func(t *testing.T) {
+	t.Run("concurrent", func(tt *testing.T) {
 		// Create a resolver with a resolve function that blocks
 		resolveStarted := make(chan struct{})
 		resolveFinished := make(chan struct{})
@@ -826,7 +826,7 @@ func TestThrottledPoolResolver_Resolve(t *testing.T) {
 
 		// Try another resolution while first one is in progress
 		result := r.Resolve(context.Background())
-		require.False(t, result, "Concurrent resolution should be throttled")
+		require.False(tt, result, "Concurrent resolution should be throttled")
 
 		// Allowed first resolution to complete
 		resolveFinished <- struct{}{}
@@ -835,7 +835,7 @@ func TestThrottledPoolResolver_Resolve(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 
 		// Verify only one resolution occurred
-		require.Equal(t, 1, resolveCount, "Only one resolution should have occurred")
+		require.Equal(tt, 1, resolveCount, "Only one resolution should have occurred")
 	})
 }
 
@@ -855,34 +855,34 @@ func (m *MockQueryErrorProcessor) ProcessQueryError(_ context.Context, db *DB, q
 }
 
 func TestNewReplicaLagTracker(t *testing.T) {
-	t.Run("default options", func(t *testing.T) {
+	t.Run("default options", func(tt *testing.T) {
 		tracker := NewReplicaLagTracker()
-		require.NotNil(t, tracker)
-		require.NotNil(t, tracker.lagInfo, "lagInfo map should be initialized")
-		require.Equal(t, defaultReplicaCheckInterval, tracker.checkInterval, "Should use default check interval")
+		require.NotNil(tt, tracker)
+		require.NotNil(tt, tracker.lagInfo, "lagInfo map should be initialized")
+		require.Equal(tt, defaultReplicaCheckInterval, tracker.checkInterval, "Should use default check interval")
 	})
 
-	t.Run("with custom lag check interval", func(t *testing.T) {
+	t.Run("with custom lag check interval", func(tt *testing.T) {
 		customInterval := 5 * time.Minute
 		tracker := NewReplicaLagTracker(
 			WithLagCheckInterval(customInterval),
 		)
-		require.NotNil(t, tracker)
-		require.Equal(t, customInterval, tracker.checkInterval, "Should use custom check interval")
+		require.NotNil(tt, tracker)
+		require.Equal(tt, customInterval, tracker.checkInterval, "Should use custom check interval")
 
 		// Check with zero interval (should use default)
 		zeroTracker := NewReplicaLagTracker(
 			WithLagCheckInterval(0),
 		)
-		require.NotNil(t, zeroTracker)
-		require.Equal(t, defaultReplicaCheckInterval, zeroTracker.checkInterval, "Should use default for zero interval")
+		require.NotNil(tt, zeroTracker)
+		require.Equal(tt, defaultReplicaCheckInterval, zeroTracker.checkInterval, "Should use default for zero interval")
 
 		// Check with negative interval (should use default)
 		negativeTracker := NewReplicaLagTracker(
 			WithLagCheckInterval(-1 * time.Second),
 		)
-		require.NotNil(t, negativeTracker)
-		require.Equal(t, defaultReplicaCheckInterval, negativeTracker.checkInterval, "Should use default for negative interval")
+		require.NotNil(tt, negativeTracker)
+		require.Equal(tt, defaultReplicaCheckInterval, negativeTracker.checkInterval, "Should use default for negative interval")
 	})
 }
 
@@ -933,10 +933,10 @@ func TestReplicaLagTracker_Quarantine(t *testing.T) {
 	ctx := context.Background()
 
 	// Helper function to create a test DB
-	createTestDB := func(t *testing.T, host string) *DB {
+	createTestDB := func(tt *testing.T, host string) *DB {
 		mockDB, _, err := sqlmock.New()
-		require.NoError(t, err)
-		t.Cleanup(func() { mockDB.Close() })
+		require.NoError(tt, err)
+		tt.Cleanup(func() { mockDB.Close() })
 
 		return &DB{
 			DB: mockDB,
@@ -947,9 +947,9 @@ func TestReplicaLagTracker_Quarantine(t *testing.T) {
 		}
 	}
 
-	t.Run("no quarantine with normal lag values", func(t *testing.T) {
+	t.Run("no quarantine with normal lag values", func(tt *testing.T) {
 		tracker := NewReplicaLagTracker()
-		db := createTestDB(t, "replica-normal")
+		db := createTestDB(tt, "replica-normal")
 
 		// Set lag values below both thresholds
 		normalTimeLag := MaxReplicaLagTime / 2
@@ -958,14 +958,14 @@ func TestReplicaLagTracker_Quarantine(t *testing.T) {
 		tracker.set(ctx, db, normalTimeLag, normalBytesLag)
 
 		info := tracker.Get(db.Address())
-		require.NotNil(t, info)
-		require.False(t, info.Quarantined, "Replica shouldn't be quarantined when both lag values are below thresholds")
-		require.Zero(t, info.QuarantinedAt, "QuarantinedAt should be zero")
+		require.NotNil(tt, info)
+		require.False(tt, info.Quarantined, "Replica shouldn't be quarantined when both lag values are below thresholds")
+		require.Zero(tt, info.QuarantinedAt, "QuarantinedAt should be zero")
 	})
 
-	t.Run("no quarantine with only time lag exceeding threshold", func(t *testing.T) {
+	t.Run("no quarantine with only time lag exceeding threshold", func(tt *testing.T) {
 		tracker := NewReplicaLagTracker()
-		db := createTestDB(t, "replica-high-time")
+		db := createTestDB(tt, "replica-high-time")
 
 		// Set time lag above threshold but bytes lag below
 		highTimeLag := MaxReplicaLagTime * 2
@@ -974,14 +974,14 @@ func TestReplicaLagTracker_Quarantine(t *testing.T) {
 		tracker.set(ctx, db, highTimeLag, normalBytesLag)
 
 		info := tracker.Get(db.Address())
-		require.NotNil(t, info)
-		require.False(t, info.Quarantined, "Replica shouldn't be quarantined when only time lag exceeds threshold")
-		require.Zero(t, info.QuarantinedAt, "QuarantinedAt should be zero")
+		require.NotNil(tt, info)
+		require.False(tt, info.Quarantined, "Replica shouldn't be quarantined when only time lag exceeds threshold")
+		require.Zero(tt, info.QuarantinedAt, "QuarantinedAt should be zero")
 	})
 
-	t.Run("no quarantine with only bytes lag exceeding threshold", func(t *testing.T) {
+	t.Run("no quarantine with only bytes lag exceeding threshold", func(tt *testing.T) {
 		tracker := NewReplicaLagTracker()
-		db := createTestDB(t, "replica-high-bytes")
+		db := createTestDB(tt, "replica-high-bytes")
 
 		// Set bytes lag above threshold but time lag below
 		normalTimeLag := MaxReplicaLagTime / 2
@@ -990,14 +990,14 @@ func TestReplicaLagTracker_Quarantine(t *testing.T) {
 		tracker.set(ctx, db, normalTimeLag, highBytesLag)
 
 		info := tracker.Get(db.Address())
-		require.NotNil(t, info)
-		require.False(t, info.Quarantined, "Replica shouldn't be quarantined when only bytes lag exceeds threshold")
-		require.Zero(t, info.QuarantinedAt, "QuarantinedAt should be zero")
+		require.NotNil(tt, info)
+		require.False(tt, info.Quarantined, "Replica shouldn't be quarantined when only bytes lag exceeds threshold")
+		require.Zero(tt, info.QuarantinedAt, "QuarantinedAt should be zero")
 	})
 
-	t.Run("quarantine when both lag values exceed thresholds", func(t *testing.T) {
+	t.Run("quarantine when both lag values exceed thresholds", func(tt *testing.T) {
 		tracker := NewReplicaLagTracker()
-		db := createTestDB(t, "replica-high-both")
+		db := createTestDB(tt, "replica-high-both")
 
 		// Set both lags above thresholds
 		highTimeLag := MaxReplicaLagTime * 2
@@ -1006,14 +1006,14 @@ func TestReplicaLagTracker_Quarantine(t *testing.T) {
 		tracker.set(ctx, db, highTimeLag, highBytesLag)
 
 		info := tracker.Get(db.Address())
-		require.NotNil(t, info)
-		require.True(t, info.Quarantined, "Replica should be quarantined when both lag values exceed thresholds")
-		require.NotZero(t, info.QuarantinedAt, "QuarantinedAt should be set")
+		require.NotNil(tt, info)
+		require.True(tt, info.Quarantined, "Replica should be quarantined when both lag values exceed thresholds")
+		require.NotZero(tt, info.QuarantinedAt, "QuarantinedAt should be set")
 	})
 
-	t.Run("reintegration when time lag drops below threshold", func(t *testing.T) {
+	t.Run("reintegration when time lag drops below threshold", func(tt *testing.T) {
 		tracker := NewReplicaLagTracker()
-		db := createTestDB(t, "replica-reintegrate-time")
+		db := createTestDB(tt, "replica-reintegrate-time")
 
 		// First quarantine the replica
 		highTimeLag := MaxReplicaLagTime * 2
@@ -1021,21 +1021,21 @@ func TestReplicaLagTracker_Quarantine(t *testing.T) {
 		tracker.set(ctx, db, highTimeLag, highBytesLag)
 
 		info := tracker.Get(db.Address())
-		require.True(t, info.Quarantined, "Replica should be quarantined initially")
+		require.True(tt, info.Quarantined, "Replica should be quarantined initially")
 
 		// Now lower time lag below threshold but keep bytes lag high
 		normalTimeLag := MaxReplicaLagTime / 2
 		tracker.set(ctx, db, normalTimeLag, highBytesLag)
 
 		info = tracker.Get(db.Address())
-		require.NotNil(t, info)
-		require.False(t, info.Quarantined, "Replica should be reintegrated when time lag drops below threshold")
-		require.Zero(t, info.QuarantinedAt, "QuarantinedAt should be reset")
+		require.NotNil(tt, info)
+		require.False(tt, info.Quarantined, "Replica should be reintegrated when time lag drops below threshold")
+		require.Zero(tt, info.QuarantinedAt, "QuarantinedAt should be reset")
 	})
 
-	t.Run("reintegration when bytes lag drops below threshold", func(t *testing.T) {
+	t.Run("reintegration when bytes lag drops below threshold", func(tt *testing.T) {
 		tracker := NewReplicaLagTracker()
-		db := createTestDB(t, "replica-reintegrate-bytes")
+		db := createTestDB(tt, "replica-reintegrate-bytes")
 
 		// First quarantine the replica
 		highTimeLag := MaxReplicaLagTime * 2
@@ -1043,21 +1043,21 @@ func TestReplicaLagTracker_Quarantine(t *testing.T) {
 		tracker.set(ctx, db, highTimeLag, highBytesLag)
 
 		info := tracker.Get(db.Address())
-		require.True(t, info.Quarantined, "Replica should be quarantined initially")
+		require.True(tt, info.Quarantined, "Replica should be quarantined initially")
 
 		// Now lower bytes lag below threshold but keep time lag high
 		normalBytesLag := int64(MaxReplicaLagBytes / 2)
 		tracker.set(ctx, db, highTimeLag, normalBytesLag)
 
 		info = tracker.Get(db.Address())
-		require.NotNil(t, info)
-		require.False(t, info.Quarantined, "Replica should be reintegrated when bytes lag drops below threshold")
-		require.Zero(t, info.QuarantinedAt, "QuarantinedAt should be reset")
+		require.NotNil(tt, info)
+		require.False(tt, info.Quarantined, "Replica should be reintegrated when bytes lag drops below threshold")
+		require.Zero(tt, info.QuarantinedAt, "QuarantinedAt should be reset")
 	})
 
-	t.Run("stays quarantined when both lag values remain high", func(t *testing.T) {
+	t.Run("stays quarantined when both lag values remain high", func(tt *testing.T) {
 		tracker := NewReplicaLagTracker()
-		db := createTestDB(t, "replica-stay-quarantined")
+		db := createTestDB(tt, "replica-stay-quarantined")
 
 		// First quarantine the replica
 		highTimeLag := MaxReplicaLagTime * 2
@@ -1065,7 +1065,7 @@ func TestReplicaLagTracker_Quarantine(t *testing.T) {
 		tracker.set(ctx, db, highTimeLag, highBytesLag)
 
 		info := tracker.Get(db.Address())
-		require.True(t, info.Quarantined, "Replica should be quarantined initially")
+		require.True(tt, info.Quarantined, "Replica should be quarantined initially")
 		initialQuarantinedAt := info.QuarantinedAt
 
 		// Update with still high lag values
@@ -1074,9 +1074,9 @@ func TestReplicaLagTracker_Quarantine(t *testing.T) {
 		tracker.set(ctx, db, newHighTimeLag, newHighBytesLag)
 
 		info = tracker.Get(db.Address())
-		require.NotNil(t, info)
-		require.True(t, info.Quarantined, "Replica should stay quarantined when both lag values remain high")
-		require.Equal(t, initialQuarantinedAt, info.QuarantinedAt, "QuarantinedAt should not change")
+		require.NotNil(tt, info)
+		require.True(tt, info.Quarantined, "Replica should stay quarantined when both lag values remain high")
+		require.Equal(tt, initialQuarantinedAt, info.QuarantinedAt, "QuarantinedAt should not change")
 	})
 }
 
@@ -1149,7 +1149,7 @@ func TestReplicaLagTracker_CheckTimeLag(t *testing.T) {
 		},
 	}
 
-	t.Run("successful query", func(t *testing.T) {
+	t.Run("successful query", func(tt *testing.T) {
 		tracker := NewReplicaLagTracker()
 
 		// Mock the lag query
@@ -1161,12 +1161,12 @@ func TestReplicaLagTracker_CheckTimeLag(t *testing.T) {
 		lag, err := tracker.CheckTimeLag(ctx, db)
 
 		// Verify no error and lag is correct
-		require.NoError(t, err, "CheckTimeLag should not return error on successful query")
-		require.Equal(t, time.Duration(expectedLag*float64(time.Second)), lag, "Should return the correct lag duration")
-		require.NoError(t, mock.ExpectationsWereMet(), "All SQL expectations should be met")
+		require.NoError(tt, err, "CheckTimeLag should not return error on successful query")
+		require.Equal(tt, time.Duration(expectedLag*float64(time.Second)), lag, "Should return the correct lag duration")
+		require.NoError(tt, mock.ExpectationsWereMet(), "All SQL expectations should be met")
 	})
 
-	t.Run("query error", func(t *testing.T) {
+	t.Run("query error", func(tt *testing.T) {
 		tracker := NewReplicaLagTracker()
 
 		// Mock a query error
@@ -1178,14 +1178,14 @@ func TestReplicaLagTracker_CheckTimeLag(t *testing.T) {
 		lag, err := tracker.CheckTimeLag(ctx, db)
 
 		// Verify error is returned and zero lag
-		require.Error(t, err, "CheckTimeLag should return error on query failure")
-		require.ErrorContains(t, err, expectedErr.Error(), "Error should contain the original error message")
-		require.Zero(t, lag, "Should return zero lag on query error")
+		require.Error(tt, err, "CheckTimeLag should return error on query failure")
+		require.ErrorContains(tt, err, expectedErr.Error(), "Error should contain the original error message")
+		require.Zero(tt, lag, "Should return zero lag on query error")
 
-		require.NoError(t, mock.ExpectationsWereMet(), "All SQL expectations should be met")
+		require.NoError(tt, mock.ExpectationsWereMet(), "All SQL expectations should be met")
 	})
 
-	t.Run("query timeout", func(t *testing.T) {
+	t.Run("query timeout", func(tt *testing.T) {
 		tracker := NewReplicaLagTracker()
 
 		// Mock a query that takes too long (exceeds the replicaLagCheckTimeout timeout)
@@ -1197,11 +1197,11 @@ func TestReplicaLagTracker_CheckTimeLag(t *testing.T) {
 		lag, err := tracker.CheckTimeLag(ctx, db)
 
 		// Verify error is returned and zero lag on timeout
-		require.Error(t, err, "CheckTimeLag should return error on timeout")
-		require.ErrorContains(t, err, "canceling query due to user request", "Error should indicate timeout")
-		require.Zero(t, lag, "Should return zero lag on query timeout")
+		require.Error(tt, err, "CheckTimeLag should return error on timeout")
+		require.ErrorContains(tt, err, "canceling query due to user request", "Error should indicate timeout")
+		require.Zero(tt, lag, "Should return zero lag on query timeout")
 
-		require.NoError(t, mock.ExpectationsWereMet(), "All SQL expectations should be met")
+		require.NoError(tt, mock.ExpectationsWereMet(), "All SQL expectations should be met")
 	})
 }
 
@@ -1221,7 +1221,7 @@ func TestReplicaLagTracker_Check(t *testing.T) {
 	ctx := context.Background()
 	primaryLSN := "0/1234567"
 
-	t.Run("successful check", func(t *testing.T) {
+	t.Run("successful check", func(tt *testing.T) {
 		tracker := NewReplicaLagTracker()
 
 		// Mock time lag query
@@ -1238,23 +1238,23 @@ func TestReplicaLagTracker_Check(t *testing.T) {
 		// Call Check
 		beforeCheck := time.Now()
 		err := tracker.Check(ctx, primaryLSN, db)
-		require.NoError(t, err, "Check should not return error on successful query")
+		require.NoError(tt, err, "Check should not return error on successful query")
 
 		// Verify internal state changed
-		require.Len(t, tracker.lagInfo, 1, "lagInfo map should have one entry after Check")
-		require.Contains(t, tracker.lagInfo, db.Address(), "lagInfo map should contain the DB address")
-		require.Equal(t, time.Duration(expectedTimeLag*float64(time.Second)),
+		require.Len(tt, tracker.lagInfo, 1, "lagInfo map should have one entry after Check")
+		require.Contains(tt, tracker.lagInfo, db.Address(), "lagInfo map should contain the DB address")
+		require.Equal(tt, time.Duration(expectedTimeLag*float64(time.Second)),
 			tracker.lagInfo[db.Address()].TimeLag,
 			"TimeLag should match query result")
-		require.Equal(t, expectedBytesLag,
+		require.Equal(tt, expectedBytesLag,
 			tracker.lagInfo[db.Address()].BytesLag,
 			"BytesLag should match query result")
-		require.GreaterOrEqual(t, tracker.lagInfo[db.Address()].LastChecked, beforeCheck,
+		require.GreaterOrEqual(tt, tracker.lagInfo[db.Address()].LastChecked, beforeCheck,
 			"LastChecked should be at or after the captured start time")
-		require.NoError(t, mock.ExpectationsWereMet())
+		require.NoError(tt, mock.ExpectationsWereMet())
 	})
 
-	t.Run("time lag error", func(t *testing.T) {
+	t.Run("time lag error", func(tt *testing.T) {
 		tracker := NewReplicaLagTracker()
 
 		// Mock time lag query error
@@ -1266,16 +1266,16 @@ func TestReplicaLagTracker_Check(t *testing.T) {
 		err := tracker.Check(ctx, primaryLSN, db)
 
 		// Verify error is returned
-		require.Error(t, err, "Check should return error when time lag query fails")
-		require.ErrorContains(t, err, timeLagErr.Error(), "Original error should be included")
+		require.Error(tt, err, "Check should return error when time lag query fails")
+		require.ErrorContains(tt, err, timeLagErr.Error(), "Original error should be included")
 
 		// Verify no lag info was stored
-		require.Empty(t, tracker.lagInfo, "lagInfo map should remain empty on error")
+		require.Empty(tt, tracker.lagInfo, "lagInfo map should remain empty on error")
 
-		require.NoError(t, mock.ExpectationsWereMet(), "All SQL expectations should be met")
+		require.NoError(tt, mock.ExpectationsWereMet(), "All SQL expectations should be met")
 	})
 
-	t.Run("bytes lag error", func(t *testing.T) {
+	t.Run("bytes lag error", func(tt *testing.T) {
 		tracker := NewReplicaLagTracker()
 
 		// Mock successful time lag query
@@ -1293,13 +1293,13 @@ func TestReplicaLagTracker_Check(t *testing.T) {
 		err := tracker.Check(ctx, primaryLSN, db)
 
 		// Verify error is returned
-		require.Error(t, err, "Check should return error when bytes lag query fails")
-		require.ErrorContains(t, err, bytesLagErr.Error(), "Original error should be included")
+		require.Error(tt, err, "Check should return error when bytes lag query fails")
+		require.ErrorContains(tt, err, bytesLagErr.Error(), "Original error should be included")
 
 		// Verify no lag info was stored
-		require.Empty(t, tracker.lagInfo, "lagInfo map should remain empty on error")
+		require.Empty(tt, tracker.lagInfo, "lagInfo map should remain empty on error")
 
-		require.NoError(t, mock.ExpectationsWereMet(), "All SQL expectations should be met")
+		require.NoError(tt, mock.ExpectationsWereMet(), "All SQL expectations should be met")
 	})
 }
 
@@ -1320,7 +1320,7 @@ func TestDBLoadBalancer_primaryLSN(t *testing.T) {
 	expectedQueryPattern := `SELECT pg_current_wal_insert_lsn()`
 	expectedLSN := "0/1234567"
 
-	t.Run("success", func(t *testing.T) {
+	t.Run("success", func(tt *testing.T) {
 		// Set up mock expectation for the LSN query
 		mock.ExpectQuery(expectedQueryPattern).
 			WillReturnRows(sqlmock.NewRows([]string{"location"}).AddRow(expectedLSN))
@@ -1329,12 +1329,12 @@ func TestDBLoadBalancer_primaryLSN(t *testing.T) {
 		lsn, err := lb.primaryLSN(ctx)
 
 		// Verify result
-		require.NoError(t, err, "primaryLSN should not return an error")
-		require.Equal(t, expectedLSN, lsn, "LSN should match expected value")
-		require.NoError(t, mock.ExpectationsWereMet(), "All SQL expectations should be met")
+		require.NoError(tt, err, "primaryLSN should not return an error")
+		require.Equal(tt, expectedLSN, lsn, "LSN should match expected value")
+		require.NoError(tt, mock.ExpectationsWereMet(), "All SQL expectations should be met")
 	})
 
-	t.Run("error", func(t *testing.T) {
+	t.Run("error", func(tt *testing.T) {
 		// Set up mock expectation for a failed LSN query
 		expectedErr := errors.New("database error")
 		mock.ExpectQuery(expectedQueryPattern).
@@ -1344,14 +1344,14 @@ func TestDBLoadBalancer_primaryLSN(t *testing.T) {
 		lsn, err := lb.primaryLSN(ctx)
 
 		// Verify error is returned
-		require.Error(t, err, "primaryLSN should return an error")
-		require.ErrorContains(t, err, expectedErr.Error(), "Error message should be descriptive")
-		require.ErrorContains(t, err, "database error", "Original error should be included")
-		require.Empty(t, lsn, "LSN should be empty on error")
-		require.NoError(t, mock.ExpectationsWereMet(), "All SQL expectations should be met")
+		require.Error(tt, err, "primaryLSN should return an error")
+		require.ErrorContains(tt, err, expectedErr.Error(), "Error message should be descriptive")
+		require.ErrorContains(tt, err, "database error", "Original error should be included")
+		require.Empty(tt, lsn, "LSN should be empty on error")
+		require.NoError(tt, mock.ExpectationsWereMet(), "All SQL expectations should be met")
 	})
 
-	t.Run("timeout", func(t *testing.T) {
+	t.Run("timeout", func(tt *testing.T) {
 		// Set up mock expectation with delay exceeding timeout
 		mock.ExpectQuery(expectedQueryPattern).
 			WillDelayFor(50 * time.Millisecond).
@@ -1363,10 +1363,10 @@ func TestDBLoadBalancer_primaryLSN(t *testing.T) {
 		lsn, err := lb.primaryLSN(ctx)
 
 		// Verify timeout error is handled
-		require.Error(t, err, "primaryLSN should return an error on timeout")
-		require.ErrorContains(t, err, "canceling query due to user request", "Error message should be descriptive")
-		require.Empty(t, lsn, "LSN should be empty on error")
-		require.NoError(t, mock.ExpectationsWereMet(), "All SQL expectations should be met")
+		require.Error(tt, err, "primaryLSN should return an error on timeout")
+		require.ErrorContains(tt, err, "canceling query due to user request", "Error message should be descriptive")
+		require.Empty(tt, lsn, "LSN should be empty on error")
+		require.NoError(tt, mock.ExpectationsWereMet(), "All SQL expectations should be met")
 	})
 }
 
@@ -1385,7 +1385,7 @@ func TestReplicaLagTracker_CheckBytesLag(t *testing.T) {
 	primaryLSN := "0/1234567"
 	expectedQueryPattern := "SELECT pg_wal_lsn_diff"
 
-	t.Run("successful query", func(t *testing.T) {
+	t.Run("successful query", func(tt *testing.T) {
 		expectedLag := int64(1048576)
 
 		// Mock the bytes lag query
@@ -1397,12 +1397,12 @@ func TestReplicaLagTracker_CheckBytesLag(t *testing.T) {
 		bytesLag, err := tracker.CheckBytesLag(ctx, primaryLSN, db)
 
 		// Verify no error and lag is correct
-		require.NoError(t, err, "CheckBytesLag should not return error on successful query")
-		require.Equal(t, expectedLag, bytesLag, "Should return the correct bytes lag")
-		require.NoError(t, mock.ExpectationsWereMet(), "All SQL expectations should be met")
+		require.NoError(tt, err, "CheckBytesLag should not return error on successful query")
+		require.Equal(tt, expectedLag, bytesLag, "Should return the correct bytes lag")
+		require.NoError(tt, mock.ExpectationsWereMet(), "All SQL expectations should be met")
 	})
 
-	t.Run("query error", func(t *testing.T) {
+	t.Run("query error", func(tt *testing.T) {
 		// Mock a query error
 		expectedErr := errors.New("query failed")
 		mock.ExpectQuery(expectedQueryPattern).
@@ -1413,14 +1413,14 @@ func TestReplicaLagTracker_CheckBytesLag(t *testing.T) {
 		bytesLag, err := tracker.CheckBytesLag(ctx, primaryLSN, db)
 
 		// Verify error is returned and zero lag
-		require.Error(t, err, "CheckBytesLag should return error on query failure")
-		require.ErrorContains(t, err, "failed to calculate replica bytes lag", "Error should be descriptive")
-		require.ErrorContains(t, err, "query failed", "Original error should be included")
-		require.Zero(t, bytesLag, "Should return zero lag on query error")
-		require.NoError(t, mock.ExpectationsWereMet(), "All SQL expectations should be met")
+		require.Error(tt, err, "CheckBytesLag should return error on query failure")
+		require.ErrorContains(tt, err, "failed to calculate replica bytes lag", "Error should be descriptive")
+		require.ErrorContains(tt, err, "query failed", "Original error should be included")
+		require.Zero(tt, bytesLag, "Should return zero lag on query error")
+		require.NoError(tt, mock.ExpectationsWereMet(), "All SQL expectations should be met")
 	})
 
-	t.Run("query timeout", func(t *testing.T) {
+	t.Run("query timeout", func(tt *testing.T) {
 		// Mock a query that takes too long (exceeds the replicaLagCheckTimeout timeout)
 		mock.ExpectQuery(expectedQueryPattern).
 			WithArgs(primaryLSN).
@@ -1431,11 +1431,11 @@ func TestReplicaLagTracker_CheckBytesLag(t *testing.T) {
 		bytesLag, err := tracker.CheckBytesLag(ctx, primaryLSN, db)
 
 		// Verify error is returned and zero lag on timeout
-		require.Error(t, err, "CheckBytesLag should return error on timeout")
-		require.ErrorContains(t, err, "failed to calculate replica bytes lag", "Error should be descriptive")
-		require.Contains(t, err.Error(), "cancel", "Error should indicate cancellation")
-		require.Zero(t, bytesLag, "Should return zero lag on query timeout")
-		require.NoError(t, mock.ExpectationsWereMet(), "All SQL expectations should be met")
+		require.Error(tt, err, "CheckBytesLag should return error on timeout")
+		require.ErrorContains(tt, err, "failed to calculate replica bytes lag", "Error should be descriptive")
+		require.Contains(tt, err.Error(), "cancel", "Error should indicate cancellation")
+		require.Zero(tt, bytesLag, "Should return zero lag on query timeout")
+		require.NoError(tt, mock.ExpectationsWereMet(), "All SQL expectations should be met")
 	})
 }
 
