@@ -2165,7 +2165,7 @@ func (app *App) applyStorageMiddleware(middlewares []configuration.Middleware) e
 // reorderMiddlewares ensures urlcache middleware comes after CDN middlewares
 func reorderMiddlewares(middlewares []configuration.Middleware) []configuration.Middleware {
 	urlCacheIndex := -1
-	lastCDNIndex := -1
+	firstCDNIndex := -1
 
 	// Find positions of urlcache and last CDN middleware
 	for i, mw := range middlewares {
@@ -2173,27 +2173,33 @@ func reorderMiddlewares(middlewares []configuration.Middleware) []configuration.
 		case "urlcache":
 			urlCacheIndex = i
 		case "cloudfront", "googlecdn", "redirect":
-			lastCDNIndex = i
+			if firstCDNIndex == -1 {
+				firstCDNIndex = i
+			}
 		}
 	}
 
 	// If urlcache is not found or no CDN middleware exists or urlcache is
-	// already after CDN middlewares, return as is:
-	if urlCacheIndex == -1 || lastCDNIndex == -1 || urlCacheIndex > lastCDNIndex {
+	// already before CDN middlewares, return as is:
+	// NOTE(prozlach): the urlcache middleware needs to go **before** other
+	// middlewares not after. It is counterintuitive, but necessary as the
+	// middlewares are then wrapped into each other in the LIFO order.
+	if urlCacheIndex == -1 || firstCDNIndex == -1 || urlCacheIndex < firstCDNIndex {
 		return middlewares
 	}
 
-	// Need to reorder: remove urlcache and insert it after the last CDN middleware
+	// Need to reorder: remove urlcache and insert it before the last CDN middleware
 	result := make([]configuration.Middleware, 0, len(middlewares))
 	urlCacheMiddleware := middlewares[urlCacheIndex]
 
 	for i, mw := range middlewares {
+		// Insert urlcache after the last CDN middleware
+		if i == firstCDNIndex {
+			result = append(result, urlCacheMiddleware)
+		}
+
 		if i != urlCacheIndex {
 			result = append(result, mw)
-		}
-		// Insert urlcache after the last CDN middleware
-		if i == lastCDNIndex {
-			result = append(result, urlCacheMiddleware)
 		}
 	}
 
