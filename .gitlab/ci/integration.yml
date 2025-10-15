@@ -51,7 +51,7 @@ s3:minio:
   parallel:
     matrix:
       # Regular combinations
-      - GO_VERSION: [ "1.23", "1.24" ]
+      - GO_VERSION: [ "1.24", "1.25" ]
         S3_DRIVER_VERSION: [ "s3", "s3_v2" ]
   rules:
     - if: $CI_COMMIT_REF_NAME != $CI_DEFAULT_BRANCH
@@ -102,10 +102,10 @@ s3:aws:
   parallel:
     matrix:
       # Regular combinations
-      - GO_VERSION: [ "1.23", "1.24" ]
+      - GO_VERSION: [ "1.24", "1.25" ]
         S3_DRIVER_VERSION: [ "s3", "s3_v2" ]
         S3_AUTH_MODE: ["key_auth"]
-      - GO_VERSION: [ "1.23", "1.24" ]
+      - GO_VERSION: [ "1.24", "1.25" ]
         S3_DRIVER_VERSION: [ "s3_v2" ]
         S3_AUTH_MODE: ["instance_auth"]
   rules:
@@ -141,7 +141,7 @@ gcs:key_creds:
   <<: *storage-driver-test
   parallel:
     matrix:
-      - GO_VERSION: [ "1.23", "1.24" ]
+      - GO_VERSION: [ "1.24", "1.25" ]
   rules:
     - <<: *if-fork-merge-request
       when: never
@@ -162,7 +162,7 @@ gcs:instance_creds:
   <<: *storage-driver-test
   parallel:
     matrix:
-      - GO_VERSION: [ "1.23", "1.24" ]
+      - GO_VERSION: [ "1.24", "1.25" ]
  # Do not run in forked projects, as we are running on custom runner with
  # instance-level credentials
   rules:
@@ -195,10 +195,10 @@ azure:
   parallel:
     matrix:
       # Regular combinations
-      - GO_VERSION: [ "1.23", "1.24" ]
+      - GO_VERSION: [ "1.24", "1.25" ]
         AZURE_DRIVER_VERSION: [ "azure", "azure_v2" ]
         AZURE_CREDENTIALS_TYPE: [ "shared_key" ]
-      - GO_VERSION: [ "1.23", "1.24" ]
+      - GO_VERSION: [ "1.24", "1.25" ]
         AZURE_DRIVER_VERSION: [ "azure_v2" ]
         AZURE_CREDENTIALS_TYPE: [ "client_secret", "default_credentials" ]
  # Do not run in forked projects, as we are running on custom runner with
@@ -412,13 +412,13 @@ database:background-migrations:
   parallel:
     matrix:
       - PG_VERSION: $PG_PREV_VERSION
-        GO_VERSION: [ "1.23", "1.24" ]
+        GO_VERSION: [ "1.24", "1.25" ]
         KV_TYPE: [ redis, valkey ]
       - PG_VERSION: $PG_CURR_VERSION
-        GO_VERSION: [ "1.23", "1.24" ]
+        GO_VERSION: [ "1.24", "1.25" ]
         KV_TYPE: [ redis, valkey ]
       - PG_VERSION: $PG_NEXT_VERSION
-        GO_VERSION: [ "1.23", "1.24" ]
+        GO_VERSION: [ "1.24", "1.25" ]
         KV_TYPE: [ redis, valkey ]
   variables: &database-load-balancing-variables
     <<: *database-variables
@@ -477,7 +477,7 @@ database:api-load-balancing-discovery:
   extends: .go-test
   parallel:
     matrix:
-      - GO_VERSION: [ "1.23", "1.24" ]
+      - GO_VERSION: [ "1.24", "1.25" ]
         KV_TYPE: [ redis, valkey ]
   stage: integration
   variables: &cache-kv-variables
@@ -599,7 +599,7 @@ kv:rate-limiter:handlers:
   extends: .go-test
   parallel:
     matrix:
-      - GO_VERSION: [ "1.23", "1.24" ]
+      - GO_VERSION: [ "1.24", "1.25" ]
         KV_TYPE: [ redis, valkey ]
   stage: integration
   variables: &kv-cluster-variables

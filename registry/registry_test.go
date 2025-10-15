@@ -21,6 +21,8 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"runtime"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -129,6 +131,11 @@ func TestGracefulShutdown(t *testing.T) {
 }
 
 func TestGracefulShutdown_HTTPDrainTimeout(t *testing.T) {
+	if strings.HasPrefix(runtime.Version(), "go1.25") {
+		// TODO(prozlach): https://gitlab.com/gitlab-org/container-registry/-/issues/1696
+		t.Skip("Skipping test on Go 1.25 - due to upstream shutdown handling issue: https://github.com/golang/go/issues/75591")
+	}
+
 	registry, err := setupRegistry()
 	require.NoError(t, err)
 

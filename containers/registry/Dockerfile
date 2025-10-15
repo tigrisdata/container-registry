@@ -1,4 +1,4 @@
-ARG GOLANG_VERSION=1.23
+ARG GOLANG_VERSION=1.24
 FROM golang:${GOLANG_VERSION}-alpine AS build
 
 ENV DISTRIBUTION_DIR /go/src/github.com/docker/distribution
