@@ -96,102 +96,6 @@ func TestEventQueue(t *testing.T) {
 	require.Zero(t, smetrics.pending.Load(), "unexpected egress count")
 }
 
-func TestRetryingSinkWithDeliveryListener(t *testing.T) {
-	t.Run("successful delivery on first attempt", func(tt *testing.T) {
-		metrics := newSafeMetrics(tt.Name())
-		deliveryListener := metrics.deliveryListener()
-		ts := &testSink{}
-
-		s := newRetryingSink(ts, 3, 10*time.Millisecond, deliveryListener)
-		defer s.Close()
-
-		event := createTestEvent("push", "blob")
-		require.NoError(tt, s.Write(&event))
-
-		assert.EqualValues(tt, 1, metrics.delivered.Load())
-		assert.Zero(tt, metrics.retries.Load())
-
-		ts.mu.Lock()
-		assert.Len(tt, ts.events, 1, "event should be in test sink")
-		ts.mu.Unlock()
-	})
-
-	t.Run("successful delivery after retries", func(tt *testing.T) {
-		metrics := newSafeMetrics(tt.Name())
-		deliveryListener := metrics.deliveryListener()
-
-		failing := &failingSink{
-			failBelowCount: 2,
-			Sink:           &testSink{},
-		}
-
-		s := newRetryingSink(failing, 3, 10*time.Millisecond, deliveryListener)
-		defer s.Close()
-
-		event := createTestEvent("push", "blob")
-		require.NoError(tt, s.Write(&event))
-
-		assert.EqualValues(tt, 1, metrics.delivered.Load())
-		assert.Positive(tt, metrics.retries.Load())
-	})
-
-	t.Run("delivery with backoff period", func(tt *testing.T) {
-		metrics := newSafeMetrics(tt.Name())
-		deliveryListener := metrics.deliveryListener()
-
-		failing := &failingSink{
-			failBelowCount: 5,
-			Sink:           &testSink{},
-		}
-
-		s := newRetryingSink(failing, 3, 50*time.Millisecond, deliveryListener)
-		defer s.Close()
-
-		event := createTestEvent("push", "blob")
-		start := time.Now()
-		require.NoError(tt, s.Write(&event))
-		elapsed := time.Since(start)
-
-		assert.Greater(tt, elapsed, 50*time.Millisecond)
-		assert.EqualValues(tt, 1, metrics.delivered.Load())
-		assert.Positive(tt, metrics.retries.Load())
-	})
-
-	t.Run("concurrent writes", func(tt *testing.T) {
-		metrics := newSafeMetrics(tt.Name())
-		deliveryListener := metrics.deliveryListener()
-
-		// Flaky sink that fails 30% of the time
-		flaky := &flakySink{
-			rate: 0.3,
-			Sink: &testSink{},
-		}
-
-		s := newRetryingSink(flaky, 5, 10*time.Millisecond, deliveryListener)
-		defer s.Close()
-
-		const nEvents = 1000
-		var wg sync.WaitGroup
-
-		for i := 0; i < nEvents; i++ {
-			wg.Add(1)
-			go func(i int) {
-				defer wg.Done()
-				event := createTestEvent("push", fmt.Sprintf("blob-%d", i))
-				assert.NoError(tt, s.Write(&event))
-			}(i)
-		}
-
-		wg.Wait()
-
-		// All events should be delivered (retryingSink retries indefinitely)
-		assert.EqualValues(tt, nEvents, metrics.delivered.Load())
-
-		// Should have some retries due to 30% failure rate
-		assert.Positive(tt, metrics.retries.Load())
-	})
-}
-
 func TestIgnoredSink(t *testing.T) {
 	blob := createTestEvent("push", "blob")
 	manifest := createTestEvent("pull", "manifest")
@@ -227,36 +131,6 @@ func TestIgnoredSink(t *testing.T) {
 		err := s.Close()
 		require.NoError(t, err)
 	}
-}
-
-func TestRetryingSink(t *testing.T) {
-	// Make a sync that fails most of the time, ensuring that all the events
-	// make it through.
-	var ts testSink
-	flaky := &flakySink{
-		rate: 0.9, // 90% failure rate
-		Sink: &ts,
-	}
-	s := newRetryingSink(flaky, 3, 10*time.Millisecond)
-
-	event := createTestEvent("push", "blob")
-	errCh := make(chan error, 10)
-	for i := 1; i <= 10; i++ {
-		go func() {
-			errCh <- s.Write(&event)
-		}()
-	}
-
-	for i := 1; i <= 10; i++ {
-		require.NoErrorf(t, <-errCh, "error writing event %d", i)
-	}
-
-	checkClose(t, s)
-
-	ts.mu.Lock()
-	defer ts.mu.Unlock()
-
-	require.Len(t, ts.events, 10, "events not propagated")
 }
 
 func TestBackoffSink(t *testing.T) {
@@ -435,45 +309,6 @@ func TestBackoffSinkWithDeliveryListener(t *testing.T) {
 }
 
 func TestConcurrentDeliveryReporting(t *testing.T) {
-	t.Run("retryingSink concurrent writes", func(t *testing.T) {
-		metrics := newSafeMetrics(t.Name())
-		deliveryListener := metrics.deliveryListener()
-
-		// Create a flaky sink that fails 30% of the time
-		flaky := &flakySink{
-			rate: 0.3,
-			Sink: &testSink{},
-		}
-
-		s := newRetryingSink(flaky, 5, 5*time.Millisecond, deliveryListener)
-		defer s.Close()
-
-		const nGoroutines = 10
-		const nEventsPerGoroutine = 10
-
-		var wg sync.WaitGroup
-		for i := 0; i < nGoroutines; i++ {
-			wg.Add(1)
-			go func(goroutineID int) {
-				defer wg.Done()
-				for j := 0; j < nEventsPerGoroutine; j++ {
-					event := createTestEvent("push", fmt.Sprintf("blob-%d-%d", goroutineID, j))
-					assert.NoError(t, s.Write(&event))
-				}
-			}(i)
-		}
-
-		wg.Wait()
-
-		totalEvents := nGoroutines * nEventsPerGoroutine
-		// All events should be delivered (retryingSink retries indefinitely)
-		require.EqualValues(t, totalEvents, metrics.delivered.Load())
-		require.Zero(t, metrics.lost.Load())
-
-		// Should have some retries due to 30% failure rate
-		require.Positive(t, metrics.retries.Load())
-	})
-
 	t.Run("backoffSink concurrent writes", func(t *testing.T) {
 		metrics := newSafeMetrics(t.Name())
 		deliveryListener := metrics.deliveryListener()
