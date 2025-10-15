@@ -106,7 +106,7 @@ codelint:ui_report:
   script:
     # Write the code coverage report to gl-code-quality-report.json
     # and print linting issues to stdout in the format: path/to/file:line description
-    - golangci-lint run --output.code-climate.path=stdout | grep -v "^[0-9]* issues\.$" | tee gl-code-quality-report.json | jq -r '.[] | "\(.location.path):\(.location.lines.begin) \(.description)"'
+    - golangci-lint run --output.code-climate.path=stdout  --show-stats=false | grep -v "^[0-9]* issues\.$" | tee gl-code-quality-report.json | jq -r '.[] | "\(.location.path):\(.location.lines.begin) \(.description)"'
   artifacts:
     reports:
       codequality: gl-code-quality-report.json
