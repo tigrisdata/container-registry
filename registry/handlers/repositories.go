@@ -917,7 +917,7 @@ func executeRenameOperation(ctx context.Context, tx datastore.Transactor, repo *
 	return rStoreTx.RenamePathForSubRepositories(ctx, repo.NamespaceID, oldpath, newPath)
 }
 
-// inferRepository infers a repository object (using the `path` argument) from either the repository store or the namesapce store
+// inferRepository infers a repository object (using the `path` argument) from either the repository store or the namespace store
 func inferRepository(ctx context.Context, repositoryPath string, rStore datastore.RepositoryStore, nStore datastore.NamespaceStore) (*models.Repository, bool, error) {
 	// find the base repository for the path to be renamed (if it exists)
 	// if the base path does not exist we still need to update the subrepositories
