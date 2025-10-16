@@ -559,6 +559,10 @@ func NewApp(ctx context.Context, config *configuration.Configuration) (*App, err
 			return nil, fmt.Errorf("failed to initialize database metrics collector: %w", err)
 		}
 
+		if err := app.initializeBBMProgressCollector(config); err != nil {
+			return nil, fmt.Errorf("failed to initialize bbm progress metrics collector: %w", err)
+		}
+
 		if config.Database.Metrics.Enabled {
 			// Set migration count metrics
 			app.setMigrationCountMetric(app.db.Primary())
@@ -2451,5 +2455,44 @@ func (app *App) initializeRowCountCollector(config *configuration.Configuration)
 		},
 	)
 
+	return nil
+}
+
+// initializeBBMProgressCollector initializes the BBM progress Prometheus metrics collector
+func (app *App) initializeBBMProgressCollector(config *configuration.Configuration) error {
+	if !config.Database.Metrics.Enabled || !config.Database.BackgroundMigrations.Enabled {
+		return nil
+	}
+
+	if app.redisCacheClient == nil {
+		return errors.New("database metrics enabled but Redis cache client is not configured")
+	}
+
+	// Executor returning rows for scanning
+	executor := func(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
+		return app.db.Primary().QueryContext(ctx, query, args...)
+	}
+
+	var pOpts []dsmetrics.ProgressOption
+	if config.Database.Metrics.Interval > 0 {
+		pOpts = append(pOpts, dsmetrics.WithProgressInterval(config.Database.Metrics.Interval))
+	}
+	if config.Database.Metrics.LeaseDuration > 0 {
+		pOpts = append(pOpts, dsmetrics.WithProgressLeaseDuration(config.Database.Metrics.LeaseDuration))
+	}
+
+	bbmCollector, err := dsmetrics.NewBBMProgressCollector(executor, app.redisCacheClient, pOpts...)
+	if err != nil {
+		return fmt.Errorf("failed to create background migration progress metrics collector: %w", err)
+	}
+	bbmCollector.Start(app.Context)
+
+	app.registerShutdownFunc(
+		func(_ *App, errCh chan error, l dlog.Logger) {
+			l.Info("stopping background migration progress metrics collector")
+			bbmCollector.Stop()
+			errCh <- nil
+		},
+	)
 	return nil
 }

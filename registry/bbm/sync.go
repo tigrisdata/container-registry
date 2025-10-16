@@ -282,19 +282,27 @@ func (jw *SyncWorker) FindJob(ctx context.Context, bbmStore datastore.Background
 			jw.logger.WithError(err).Error("failed to find running or active background migrations job")
 			return nil, fmt.Errorf("failed to find running or active background migrations job: %w", err)
 		}
-		if bbm != nil {
-			if job == nil {
-				jw.logger.Info("found running/active migration without elligiblejobs, setting it to finished")
-				bbm.ErrorCode = models.NullErrCode
-				bbm.Status = models.BackgroundMigrationFinished
-				// nolint: revive // max-control-nesting
-				if err = bbmStore.UpdateStatus(ctx, bbm); err != nil {
-					jw.logger.WithError(err).Error("failed to update status of background migration")
-					return nil, fmt.Errorf("failed to update status of background migration: %w", err)
-				}
-				jw.lastRunCompletedBBMs++
-				jw.logger.Info("updated migration status, continuing to look for other jobs")
-				continue
+		if bbm == nil {
+			return job, err
+		}
+		if job == nil {
+			jw.logger.Info("found running/active migration without eligible jobs, setting it to finished")
+			bbm.ErrorCode = models.NullErrCode
+			bbm.Status = models.BackgroundMigrationFinished
+			if err = bbmStore.UpdateStatus(ctx, bbm); err != nil {
+				jw.logger.WithError(err).Error("failed to update status of background migration")
+				return nil, fmt.Errorf("failed to update status of background migration: %w", err)
+			}
+			jw.lastRunCompletedBBMs++
+			jw.logger.Info("updated migration status, continuing to look for other jobs")
+			continue
+		}
+
+		// if in active state, make sure to set to running state
+		if bbm.Status == models.BackgroundMigrationActive {
+			bbm.Status = models.BackgroundMigrationRunning
+			if err := bbmStore.UpdateStatus(ctx, bbm); err != nil {
+				return nil, err
 			}
 		}
 		enrichJobWithBBMAttributes(job, bbm)

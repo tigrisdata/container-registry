@@ -137,6 +137,8 @@ func upMigrate(t *testing.T, db *sql.DB, extra ...string) func() {
 			// insert some records into the bbm target table (`public.test`)
 			fmt.Sprintf(`INSERT INTO %s (%s)
 				SELECT * FROM generate_series(1, 90)`, targetBBMTable, targetBBMColumn),
+			// analyze to ensure Postgres statistics (reltuples, pg_stats.null_frac) are populated for stable estimates
+			fmt.Sprintf(`ANALYZE %s`, targetBBMTable),
 		}
 
 		base = append(append(base, allBBMUpSchemaMigration...), extra...)
@@ -344,6 +346,8 @@ func (s *BackgroundMigrationTestSuite) testAsyncBackgroundMigration(workerCount 
 		err := db.QueryRow(query, expectedBBM.StartID, expectedBBM.EndID).Scan(&exists)
 		return exists, err
 	})
+	// Assert total_tuple_count matches computed expected from table/column
+	s.requireTotalTupleCountMatches(expectedBBM.Name)
 }
 
 // Test_AsyncBackgroundMigration tests that if a background migration is introduced via regular database migration, it will be picked up and executed asynchronously to completion.
@@ -384,6 +388,8 @@ func (s *BackgroundMigrationTestSuite) Test_AsyncBackgroundMigration_NullBatchin
 	// Assert finished and no remaining NULLs in new_id
 	s.requireBBMEventually(expectedBBM, 30*time.Second, 100*time.Millisecond)
 	s.requireNoNulls(targetBBMTable, targetBBMNullColumn)
+	// Assert total_tuple_count matches computed expected from table/column for null-batching
+	s.requireTotalTupleCountMatches(expectedBBM.Name)
 }
 
 // BackfillNewIDWhereNull sets new_id = id for a batch of rows where new_id IS NULL using keyset pagination
@@ -634,4 +640,36 @@ func (s *BackgroundMigrationTestSuite) requireMigrationLogicComplete(validationF
 	complete, err := validationFunc(s.db)
 	s.Require().NoError(err)
 	s.Require().True(complete)
+}
+
+// requireTotalTupleCountEquals asserts that total_tuple_count equals the expected value
+// requireTotalTupleCountMatches computes expected total tuples based on table and column and compares with persisted estimate.
+// For serial batching, expected is COUNT(*) of the table; for null-batching, if NULLs exist in target column, expected is COUNT WHERE column IS NULL.
+func (s *BackgroundMigrationTestSuite) requireTotalTupleCountMatches(bbmName string) {
+	q := `SELECT table_name, column_name, total_tuple_count FROM batched_background_migrations WHERE name = $1`
+	var (
+		table  string
+		column string
+		total  sql.NullInt64
+	)
+	err := s.db.QueryRow(q, bbmName).Scan(&table, &column, &total)
+	s.Require().NoError(err)
+	s.Require().True(total.Valid, "expected total_tuple_count to be set for %q", bbmName)
+
+	// Compute counts
+	var totalCount int64
+	qTotal := fmt.Sprintf("SELECT COUNT(*) FROM %s", table)
+	s.Require().NoError(s.db.QueryRow(qTotal).Scan(&totalCount))
+
+	var nullCount int64
+	qNull := fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s IS NULL", table, column)
+	s.Require().NoError(s.db.QueryRow(qNull).Scan(&nullCount))
+
+	// Choose expected: prefer nullCount when it differs (null-batching), otherwise totalCount
+	expected := totalCount
+	if nullCount > 0 && nullCount != totalCount {
+		expected = nullCount
+	}
+
+	s.Require().Equal(expected, total.Int64)
 }
