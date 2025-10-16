@@ -90,6 +90,21 @@ func TestSyncWorker_FindJob_Errors(t *testing.T) {
 			},
 		},
 		{
+			name: "error when updating active migration to running",
+			setupMocks: func(ctrl *gomock.Controller) datastore.BackgroundMigrationStore {
+				bbmStoreMock := mocks.NewMockBackgroundMigrationStore(ctrl)
+				active := *sync
+				active.Status = models.BackgroundMigrationActive
+				gomock.InOrder(
+					bbmStoreMock.EXPECT().FindNextByStatus(ctx, models.BackgroundMigrationFailed).Return(nil, nil).Times(1),
+					bbmStoreMock.EXPECT().FindNext(ctx).Return(&active, nil).Times(1),
+					bbmStoreMock.EXPECT().FindJobWithStatus(ctx, active.ID, models.BackgroundMigrationFailed).Return(syncJob, nil).Times(1),
+					bbmStoreMock.EXPECT().UpdateStatus(ctx, &active).Return(errAnError).Times(1),
+				)
+				return bbmStoreMock
+			},
+		},
+		{
 			name: "error when finding last job",
 			setupMocks: func(ctrl *gomock.Controller) datastore.BackgroundMigrationStore {
 				bbmStoreMock := mocks.NewMockBackgroundMigrationStore(ctrl)
@@ -164,12 +179,20 @@ func TestSyncWorker_FindJob_Errors(t *testing.T) {
 			name: "error when updating status of background migration",
 			setupMocks: func(ctrl *gomock.Controller) datastore.BackgroundMigrationStore {
 				bbmStoreMock := mocks.NewMockBackgroundMigrationStore(ctrl)
+				active := *sync
+				active.Status = models.BackgroundMigrationActive
+				running := active
+				running.Status = models.BackgroundMigrationRunning
 				gomock.InOrder(
 					bbmStoreMock.EXPECT().FindNextByStatus(ctx, models.BackgroundMigrationFailed).Return(nil, nil).Times(1),
-					bbmStoreMock.EXPECT().FindNext(ctx).Return(sync, nil).Times(1),
-					bbmStoreMock.EXPECT().FindJobWithStatus(ctx, sync.ID, models.BackgroundMigrationFailed).Return(nil, nil).Times(1),
-					bbmStoreMock.EXPECT().FindLastJob(ctx, sync).Return(nil, nil).Times(1),
-					bbmStoreMock.EXPECT().UpdateStatus(ctx, sync).Return(errAnError).Times(1),
+					bbmStoreMock.EXPECT().FindNext(ctx).Return(&active, nil).Times(1),
+					bbmStoreMock.EXPECT().FindJobWithStatus(ctx, active.ID, models.BackgroundMigrationFailed).Return(nil, nil).Times(1),
+					bbmStoreMock.EXPECT().FindLastJob(ctx, &active).Return(nil, nil).Times(1),
+					bbmStoreMock.EXPECT().EstimateTotalTupleCount(ctx, &active).Return(int64(1000), nil).Times(1),
+					bbmStoreMock.EXPECT().SetTotalTupleCount(ctx, active.ID, gomock.Any()).Return(nil).Times(1),
+					bbmStoreMock.EXPECT().FindJobEndFromJobStart(ctx, active.TargetTable, active.TargetColumn, active.StartID, active.EndID, active.BatchSize).Return(active.EndID, nil).Times(1),
+					bbmStoreMock.EXPECT().CreateNewJob(ctx, gomock.Any()).Return(nil).Times(1),
+					bbmStoreMock.EXPECT().UpdateStatus(ctx, &running).Return(errAnError).Times(1),
 				)
 				return bbmStoreMock
 			},
@@ -342,23 +365,29 @@ func TestSyncWorker_FindJob(t *testing.T) {
 			setupMocks: func(ctrl *gomock.Controller) datastore.BackgroundMigrationStore {
 				bbmStoreMock := mocks.NewMockBackgroundMigrationStore(ctrl)
 				jobEndID := 3
+				// create a local copy with Active status to trigger status update to Running
+				active := *sync
+				active.Status = models.BackgroundMigrationActive
 				job := &models.BackgroundMigrationJob{
-					BBMID:            sync.ID,
-					StartID:          sync.StartID,
+					BBMID:            active.ID,
+					StartID:          active.StartID,
 					EndID:            jobEndID,
-					BatchSize:        sync.BatchSize,
-					JobName:          sync.JobName,
-					PaginationColumn: sync.TargetColumn,
+					BatchSize:        active.BatchSize,
+					JobName:          active.JobName,
+					PaginationColumn: active.TargetColumn,
+					PaginationTable:  active.TargetTable,
 				}
 
 				gomock.InOrder(
 					bbmStoreMock.EXPECT().FindNextByStatus(ctx, models.BackgroundMigrationFailed).Return(nil, nil).Times(1),
-					bbmStoreMock.EXPECT().FindNext(ctx).Return(sync, nil).Times(1),
-					bbmStoreMock.EXPECT().FindJobWithStatus(ctx, sync.ID, models.BackgroundMigrationFailed).Return(nil, nil).Times(1),
-					bbmStoreMock.EXPECT().FindLastJob(ctx, sync).Return(nil, nil).Times(1),
-					bbmStoreMock.EXPECT().UpdateStatus(ctx, sync).Return(nil).Times(1),
-					bbmStoreMock.EXPECT().FindJobEndFromJobStart(ctx, sync.TargetTable, sync.TargetColumn, sync.StartID, sync.EndID, sync.BatchSize).Return(jobEndID, nil).Times(1),
+					bbmStoreMock.EXPECT().FindNext(ctx).Return(&active, nil).Times(1),
+					bbmStoreMock.EXPECT().FindJobWithStatus(ctx, active.ID, models.BackgroundMigrationFailed).Return(nil, nil).Times(1),
+					bbmStoreMock.EXPECT().FindLastJob(ctx, &active).Return(nil, nil).Times(1),
+					bbmStoreMock.EXPECT().EstimateTotalTupleCount(ctx, &active).Return(int64(1000), nil).Times(1),
+					bbmStoreMock.EXPECT().SetTotalTupleCount(ctx, active.ID, gomock.Any()).Return(nil).Times(1),
+					bbmStoreMock.EXPECT().FindJobEndFromJobStart(ctx, active.TargetTable, active.TargetColumn, active.StartID, active.EndID, active.BatchSize).Return(jobEndID, nil).Times(1),
 					bbmStoreMock.EXPECT().CreateNewJob(ctx, job).Return(nil),
+					bbmStoreMock.EXPECT().UpdateStatus(ctx, &models.BackgroundMigration{ID: active.ID, Name: active.Name, Status: models.BackgroundMigrationRunning, StartID: active.StartID, EndID: active.EndID, BatchSize: active.BatchSize, JobName: active.JobName, TargetTable: active.TargetTable, TargetColumn: active.TargetColumn, ErrorCode: active.ErrorCode, BatchingStrategy: active.BatchingStrategy, TotalTupleCount: active.TotalTupleCount}).Return(nil).Times(1),
 				)
 				return bbmStoreMock
 			},
@@ -438,7 +467,11 @@ func TestSyncWorker_FindJob(t *testing.T) {
 					bbmStoreMock.EXPECT().FindNextByStatus(ctx, models.BackgroundMigrationFailed).Return(nil, nil).Times(1),
 					bbmStoreMock.EXPECT().FindNext(ctx).Return(nb, nil).Times(1),
 					bbmStoreMock.EXPECT().HasNullValues(ctx, nb.TargetTable, nb.TargetColumn).Return(true, nil).Times(1),
+					bbmStoreMock.EXPECT().FindLastJob(ctx, nb).Return(nil, nil).Times(1),
+					bbmStoreMock.EXPECT().EstimateTotalTupleCount(ctx, nb).Return(int64(500), nil).Times(1),
+					bbmStoreMock.EXPECT().SetTotalTupleCount(ctx, nb.ID, gomock.Any()).Return(nil).Times(1),
 					bbmStoreMock.EXPECT().CreateNewJob(ctx, job).Return(nil).Times(1),
+					bbmStoreMock.EXPECT().UpdateStatus(ctx, gomock.Any()).Return(nil).Times(1),
 				)
 				return bbmStoreMock
 			},

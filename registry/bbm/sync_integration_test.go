@@ -344,6 +344,8 @@ func (s *BackgroundMigrationTestSuite) TestSyncBackgroundMigration_NullBatching(
 	}
 	s.requireBBMFinally(bbmName, expected)
 	s.requireNoNulls(targetBBMTable, targetBBMNullColumn)
+	// Assert total_tuple_count matches computed expected from table/column for null-batching
+	s.requireTotalTupleCountMatches(bbmName)
 }
 
 // testSyncRunSingleActiveRunningBBM is a helper function to test the behavior of a single active or running background migration.
@@ -409,6 +411,8 @@ func (s *BackgroundMigrationTestSuite) testSyncRunSingleActiveRunningBBM(status 
 		err := db.QueryRow(query, expectedBBM.StartID, expectedBBM.EndID).Scan(&exists)
 		return exists, err
 	})
+	// Assert total_tuple_count matches computed expected from table/column when first job was created
+	s.requireTotalTupleCountMatches(expectedBBM.Name)
 }
 
 // testSyncRunMultipleActiveRunningBBM is a helper function to test the behavior of multiple active or running background migrations.
@@ -499,6 +503,9 @@ func (s *BackgroundMigrationTestSuite) testSyncRunMultipleActiveRunningBBM(statu
 	s.requireBBMJobsFinally(expectedBBM1.Name, expectedBBMJobs1)
 	s.requireBBMFinally(expectedBBM2.Name, expectedBBM2)
 	s.requireBBMJobsFinally(expectedBBM2.Name, expectedBBMJobs2)
+	// Assert total_tuple_count matches computed expected from table/column for both migrations
+	s.requireTotalTupleCountMatches(expectedBBM1.Name)
+	s.requireTotalTupleCountMatches(expectedBBM2.Name)
 }
 
 // TestSyncRunAllStateCombinationsBBM tests the behavior of all state combinations in the background migration process.

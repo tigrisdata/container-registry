@@ -78,6 +78,10 @@ type BackgroundMigrationStore interface {
 	GetPendingWALCount(ctx context.Context) (int, error)
 	// HasNullValues returns true if a table's column contains NULL values
 	HasNullValues(ctx context.Context, table, column string) (bool, error)
+	// SetTotalTupleCount sets the estimated total tuple count for a background migration
+	SetTotalTupleCount(ctx context.Context, id int, total int64) error
+	// EstimateTotalTupleCount estimates total tuples to process for a BBM using reltuples and pg_stats
+	EstimateTotalTupleCount(ctx context.Context, bbm *models.BackgroundMigration) (int64, error)
 }
 
 // NewBackgroundMigrationStore builds a new backgroundMigrationStore.
@@ -214,7 +218,8 @@ func (bms *backgroundMigrationStore) FindNext(ctx context.Context) (*models.Back
 			table_name,
 			column_name,
 			failure_error_code,
-			batching_strategy
+			batching_strategy,
+			total_tuple_count
 		FROM
 			batched_background_migrations
 		WHERE
@@ -299,7 +304,8 @@ func (bms *backgroundMigrationStore) FindById(ctx context.Context, id int) (*mod
 			table_name,
 			column_name,
 			failure_error_code,
-			batching_strategy
+			batching_strategy,
+			total_tuple_count
 		FROM
 			batched_background_migrations
 		WHERE
@@ -324,7 +330,8 @@ func (bms *backgroundMigrationStore) FindNextByStatus(ctx context.Context, statu
 			table_name,
 			column_name,
 			failure_error_code,
-			batching_strategy
+			batching_strategy,
+			total_tuple_count
 		FROM
 			batched_background_migrations
 		WHERE
@@ -353,7 +360,8 @@ func (bms *backgroundMigrationStore) FindByName(ctx context.Context, name string
 			table_name,
 			column_name,
 			failure_error_code,
-			batching_strategy
+			batching_strategy,
+			total_tuple_count
 		FROM
 			batched_background_migrations
 		WHERE
@@ -478,7 +486,8 @@ func (bms *backgroundMigrationStore) FindAll(ctx context.Context) (models.Backgr
 			table_name,
 			column_name,
 			failure_error_code,
-			batching_strategy
+			batching_strategy,
+			total_tuple_count
 		FROM
 			batched_background_migrations
 		ORDER BY
@@ -701,6 +710,129 @@ func (bms *backgroundMigrationStore) HasNullValues(ctx context.Context, table, c
 	return exists, nil
 }
 
+// SetTotalTupleCount sets the estimated total tuple count for a background migration
+func (bms *backgroundMigrationStore) SetTotalTupleCount(ctx context.Context, id int, total int64) error {
+	defer metrics.InstrumentQuery("bbm_set_total_tuple_count")()
+
+	q := `UPDATE
+                batched_background_migrations
+              SET
+                total_tuple_count = $1,
+                updated_at = now()
+              WHERE
+                id = $2`
+	if _, err := bms.db.ExecContext(ctx, q, total, id); err != nil {
+		return fmt.Errorf("failed to set total tuple count: %w", err)
+	}
+	return nil
+}
+
+// EstimateTotalTupleCount estimates the total number of tuples to process for a BBM.
+// For serial/range batching, uses partition-aware reltuples (full-table coverage).
+// For null-batching, multiplies reltuples by pg_stats.null_frac for the target column.
+func (bms *backgroundMigrationStore) EstimateTotalTupleCount(ctx context.Context, bbm *models.BackgroundMigration) (int64, error) {
+	schemaName, tableName := parseSchemaAndTable(bbm.TargetTable)
+
+	totalRows, err := bms.estimateTotalRowsViaReltuples(ctx, schemaName, tableName)
+	if err != nil {
+		return 0, err
+	}
+
+	// Null batching: apply null fraction if available
+	if bbm.BatchingStrategy == models.NullBatchingBBMStrategy {
+		nf, err := bms.fetchNullFrac(ctx, schemaName, tableName, bbm.TargetColumn)
+		if err != nil {
+			return 0, err
+		}
+		// round up
+		total := int64(float64(totalRows) * nf)
+		if float64(totalRows)*nf > float64(total) {
+			total++
+		}
+		if total < 0 {
+			total = 0
+		}
+		return total, nil
+	}
+
+	if totalRows < 0 {
+		totalRows = 0
+	}
+	return totalRows, nil
+}
+
+// estimateTotalRowsViaReltuples returns a partition-aware reltuples estimate.
+func (bms *backgroundMigrationStore) estimateTotalRowsViaReltuples(ctx context.Context, schema, table string) (int64, error) {
+	defer metrics.InstrumentQuery("bbm_estimate_total_rows_via_reltuples")()
+
+	q := `WITH part AS (
+                SELECT
+                    COALESCE(SUM(c.reltuples), 0) AS rt
+                FROM
+                    pg_inherits i
+                    JOIN pg_class c ON c.oid = i.inhrelid
+                    JOIN pg_class p ON p.oid = i.inhparent
+                    JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE
+                    n.nspname = $1
+                    AND p.relname = $2
+            )
+            SELECT
+                CASE WHEN part.rt > 0 THEN
+                    part.rt
+                ELSE
+                    (
+                        SELECT
+                            c.reltuples
+                        FROM
+                            pg_class c
+                            JOIN pg_namespace n ON n.oid = c.relnamespace
+                        WHERE
+                            n.nspname = $1
+                            AND c.relname = $2)
+                END::bigint
+            FROM
+                part;`
+
+	var total sql.NullInt64
+	if err := bms.db.QueryRowContext(ctx, q, schema, table).Scan(&total); err != nil {
+		return 0, fmt.Errorf("estimating reltuples for %s.%s: %w", schema, table, err)
+	}
+	if !total.Valid {
+		return 0, nil
+	}
+	return total.Int64, nil
+}
+
+// fetchNullFrac retrieves pg_stats.null_frac for a column; returns 0 on missing stats.
+func (bms *backgroundMigrationStore) fetchNullFrac(ctx context.Context, schema, table, column string) (float64, error) {
+	defer metrics.InstrumentQuery("bbm_fetch_null_frac")()
+
+	q := `SELECT null_frac FROM pg_stats WHERE schemaname=$1 AND tablename=$2 AND attname=$3`
+	var nf sql.NullFloat64
+	if err := bms.db.QueryRowContext(ctx, q, schema, table, column).Scan(&nf); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("failed fetching null_frac for %s.%s: %w", table, column, err)
+	}
+	if !nf.Valid || nf.Float64 < 0 {
+		return 0, nil
+	}
+	if nf.Float64 > 1 {
+		return 1, nil
+	}
+	return nf.Float64, nil
+}
+
+func parseSchemaAndTable(qualified string) (string, string) {
+	parts := strings.Split(qualified, ".")
+	if len(parts) == 2 {
+		return parts[0], parts[1]
+	}
+	return "public", qualified
+}
+
 // pqQuoteIdent minimally quotes an identifier using double quotes, escaping internal quotes.
 func pqQuoteIdent(ident string) string {
 	return "\"" + strings.ReplaceAll(ident, "\"", "\"\"") + "\""
@@ -757,7 +889,7 @@ func scanBackgroundMigrationJob(row *Row) (*models.BackgroundMigrationJob, error
 
 func scanBackgroundMigration(row *Row) (*models.BackgroundMigration, error) {
 	bm := new(models.BackgroundMigration)
-	if err := row.Scan(&bm.ID, &bm.Name, &bm.StartID, &bm.EndID, &bm.BatchSize, &bm.Status, &bm.JobName, &bm.TargetTable, &bm.TargetColumn, &bm.ErrorCode, &bm.BatchingStrategy); err != nil {
+	if err := row.Scan(&bm.ID, &bm.Name, &bm.StartID, &bm.EndID, &bm.BatchSize, &bm.Status, &bm.JobName, &bm.TargetTable, &bm.TargetColumn, &bm.ErrorCode, &bm.BatchingStrategy, &bm.TotalTupleCount); err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("scanning batched background migration: %w", err)
 		}
@@ -773,7 +905,7 @@ func scanFullBackgroundMigrations(rows *sql.Rows) (models.BackgroundMigrations, 
 
 	for rows.Next() {
 		b := new(models.BackgroundMigration)
-		err := rows.Scan(&b.ID, &b.Name, &b.StartID, &b.EndID, &b.BatchSize, &b.Status, &b.JobName, &b.TargetTable, &b.TargetColumn, &b.ErrorCode, &b.BatchingStrategy)
+		err := rows.Scan(&b.ID, &b.Name, &b.StartID, &b.EndID, &b.BatchSize, &b.Status, &b.JobName, &b.TargetTable, &b.TargetColumn, &b.ErrorCode, &b.BatchingStrategy, &b.TotalTupleCount)
 		if err != nil {
 			return nil, fmt.Errorf("scanning background migrations: %w", err)
 		}

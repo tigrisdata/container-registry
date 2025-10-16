@@ -137,6 +137,22 @@ For Null/Predicate Batching, there are important considerations:
 
 - **Performance Optimization:** It is crucial to add an index to efficiently support the predicate, with a preference for a partial index. Without an index, the operation to check for remaining work can degrade into full table scans, especially in large tables, impacting performance significantly. The discussion [here](https://gitlab.com/gitlab-org/container-registry/-/issues/1248#note_1877479379) is a clear example of why this is needed.
 
+### Estimating Progress and Total Tuple Count
+
+To efficiently track the progress of a migration without needing to scan the entire dataset, each migration records an estimated total amount of work in the `batched_background_migrations.total_tuple_count` field.
+
+When a migration begins (with the creation of the first job), the system calculates and stores the `total_tuple_count`:
+
+- **For Serial/ID Keyset Batching:** The system uses `pg_class.reltuples`, which provides an estimate of the number of rows in a table, including all rows in partitioned tables. This gives an approximate count of the rows that the migration will process.
+
+- **For Null/Predicate Batching:** The system multiplies the `reltuples` estimate by `pg_stats.null_frac` for the target column. This helps estimate the number of rows that meet the specified condition (e.g., rows where a column is NULL).
+
+The progress of the migration is then estimated using the formula: `min(1, finished_jobs × batch_size / total_tuple_count)`. This formula calculates the proportion of work completed based on the number of finished jobs and their batch sizes relative to the total estimated work.
+
+This method uses the approximations from `reltuples` and `null_frac` which are statistics from the database planner. They might not always be up-to-date or perfectly accurate, but they are generally reliable and very quick to access. In both batching strategies, the size of the migrating table can vary significantly as the condition changes over time. The calculation `finished_jobs × batch_size` serves as an upper limit and might overestimate progress (hence, it is capped at 100%).
+
+The main reasons for using this approach is it allows us to get the estimated progress of migrations while relying on simple and fast database catalog lookups without requiring full table scans, making it suitable for large tables. This approach is also consistent with the practices used in GitLab Rails.
+
 ## Creation
 
 Batch Background Migrations (BBMs) are created by adding a new migration into the normal schema migrations. This process involves several steps:

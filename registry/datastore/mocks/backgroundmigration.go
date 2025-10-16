@@ -85,6 +85,21 @@ func (mr *MockBackgroundMigrationStoreMockRecorder) CreateNewJob(ctx, newJob any
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateNewJob", reflect.TypeOf((*MockBackgroundMigrationStore)(nil).CreateNewJob), ctx, newJob)
 }
 
+// EstimateTotalTupleCount mocks base method.
+func (m *MockBackgroundMigrationStore) EstimateTotalTupleCount(ctx context.Context, bbm *models.BackgroundMigration) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EstimateTotalTupleCount", ctx, bbm)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// EstimateTotalTupleCount indicates an expected call of EstimateTotalTupleCount.
+func (mr *MockBackgroundMigrationStoreMockRecorder) EstimateTotalTupleCount(ctx, bbm any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EstimateTotalTupleCount", reflect.TypeOf((*MockBackgroundMigrationStore)(nil).EstimateTotalTupleCount), ctx, bbm)
+}
+
 // ExistsColumn mocks base method.
 func (m *MockBackgroundMigrationStore) ExistsColumn(ctx context.Context, schema, table, column string) (bool, error) {
 	m.ctrl.T.Helper()
@@ -334,6 +349,20 @@ func (m *MockBackgroundMigrationStore) Resume(ctx context.Context) error {
 func (mr *MockBackgroundMigrationStoreMockRecorder) Resume(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Resume", reflect.TypeOf((*MockBackgroundMigrationStore)(nil).Resume), ctx)
+}
+
+// SetTotalTupleCount mocks base method.
+func (m *MockBackgroundMigrationStore) SetTotalTupleCount(ctx context.Context, id int, total int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetTotalTupleCount", ctx, id, total)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetTotalTupleCount indicates an expected call of SetTotalTupleCount.
+func (mr *MockBackgroundMigrationStoreMockRecorder) SetTotalTupleCount(ctx, id, total any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTotalTupleCount", reflect.TypeOf((*MockBackgroundMigrationStore)(nil).SetTotalTupleCount), ctx, id, total)
 }
 
 // SyncLock mocks base method.

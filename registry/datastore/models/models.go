@@ -218,6 +218,7 @@ type BackgroundMigration struct {
 	TargetColumn     string
 	ErrorCode        BBMErrorCode
 	BatchingStrategy BBMStrategy
+	TotalTupleCount  sql.NullInt64
 }
 
 // BackgroundMigrations is a slice of BackgroundMigration pointers.

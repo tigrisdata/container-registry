@@ -155,6 +155,98 @@ func TestBackgroundMigrationStore_FindJobEndFromJobStart_TableNotFound(t *testin
 	require.Error(t, err)
 }
 
+func TestBackgroundMigrationStore_SetTotalTupleCount(t *testing.T) {
+	reloadBackgroundMigrationFixtures(t)
+
+	s := datastore.NewBackgroundMigrationStore(suite.db)
+
+	// pick an existing BBM from fixtures (id=2)
+	const id = 2
+	const total int64 = 12345
+	require.NoError(t, s.SetTotalTupleCount(suite.ctx, id, total))
+
+	// verify it was persisted
+	m, err := s.FindById(suite.ctx, id)
+	require.NoError(t, err)
+	require.NotNil(t, m)
+	require.True(t, m.TotalTupleCount.Valid)
+	require.Equal(t, total, m.TotalTupleCount.Int64)
+}
+
+func TestBackgroundMigrationStore_EstimateTotalTupleCount_SerialStrategy(t *testing.T) {
+	// Create and populate a temporary table without schema qualification (defaults to public)
+	_, err := suite.db.Exec(`CREATE TABLE IF NOT EXISTS tmp_bbm_estimate_serial (id INT PRIMARY KEY)`)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, _ = suite.db.Exec(`DROP TABLE IF EXISTS tmp_bbm_estimate_serial`)
+	})
+
+	// Insert 42 rows
+	_, err = suite.db.Exec(`INSERT INTO tmp_bbm_estimate_serial (id)
+		SELECT i FROM generate_series(1, 42) AS i`)
+	require.NoError(t, err)
+
+	// Ensure statistics are available
+	_, err = suite.db.Exec(`ANALYZE tmp_bbm_estimate_serial`)
+	require.NoError(t, err)
+
+	s := datastore.NewBackgroundMigrationStore(suite.db)
+	bbm := &models.BackgroundMigration{
+		TargetTable:      "tmp_bbm_estimate_serial",
+		TargetColumn:     "id",
+		BatchingStrategy: models.SerialKeySetBatchingBBMStrategy,
+	}
+
+	total, err := s.EstimateTotalTupleCount(suite.ctx, bbm)
+	require.NoError(t, err)
+	// For small tables with ANALYZE, reltuples should match exact row count
+	require.EqualValues(t, 42, total)
+}
+
+func TestBackgroundMigrationStore_EstimateTotalTupleCount_NullBatching(t *testing.T) {
+	// Create and populate a temporary table with a controlled NULL fraction
+	_, err := suite.db.Exec(`CREATE TABLE IF NOT EXISTS tmp_bbm_estimate_null (id INT PRIMARY KEY, val INT NULL)`)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, _ = suite.db.Exec(`DROP TABLE IF EXISTS tmp_bbm_estimate_null`)
+	})
+
+	// Insert 100 rows where 30% have NULL in val
+	_, err = suite.db.Exec(`INSERT INTO tmp_bbm_estimate_null (id, val)
+		SELECT i,
+			CASE WHEN (i % 10) < 3 THEN NULL ELSE 1 END
+		FROM generate_series(1, 100) AS i`)
+	require.NoError(t, err)
+
+	// Ensure statistics are available (needed for pg_stats.null_frac)
+	_, err = suite.db.Exec(`ANALYZE tmp_bbm_estimate_null`)
+	require.NoError(t, err)
+
+	s := datastore.NewBackgroundMigrationStore(suite.db)
+	bbm := &models.BackgroundMigration{
+		TargetTable:      "tmp_bbm_estimate_null",
+		TargetColumn:     "val",
+		BatchingStrategy: models.NullBatchingBBMStrategy,
+	}
+
+	total, err := s.EstimateTotalTupleCount(suite.ctx, bbm)
+	require.NoError(t, err)
+
+	// Compare estimator to actual NULL count with small tolerance for pg_stats sampling/rounding
+	var actualNulls int64
+	err = suite.db.QueryRow(`SELECT COUNT(*) FROM tmp_bbm_estimate_null WHERE val IS NULL`).Scan(&actualNulls)
+	require.NoError(t, err)
+
+	if actualNulls < 0 {
+		actualNulls = 0
+	}
+	diff := actualNulls - total
+	if diff < 0 {
+		diff = -diff
+	}
+	require.LessOrEqual(t, diff, int64(1), "estimate should be within ±1 of actual NULL count")
+}
+
 func TestBackgroundMigrationStore_FindJobEndFromJobStart_ColumnNotFound(t *testing.T) {
 	reloadNamespaceFixtures(t)
 	reloadRepositoryFixtures(t)
