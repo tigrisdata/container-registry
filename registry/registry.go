@@ -222,25 +222,20 @@ func (registry *Registry) ListenAndServe() error {
 			ctx, cancel := context.WithTimeout(context.Background(), registry.config.HTTP.DrainTimeout)
 			defer cancel()
 			if err := registry.server.Shutdown(ctx); err != nil {
+				l.WithError(err).Warn("failed to shutdown the server")
+				return err
+			}
+			l.Info("http connections have been drained, server has shut down")
+		} else {
+			l.Info("closing the HTTP server")
+			if err := registry.server.Close(); err != nil {
+				l.WithError(err).Warn("failed to close the server")
 				return err
 			}
 		}
 
-		if registry.config.Database.Enabled {
-			l.Info("closing database connections")
-
-			ctx := context.Background()
-			var cancel context.CancelFunc
-
-			// Drain database with grace period, rather than waiting indefinitely.
-			if registry.config.Database.DrainTimeout != 0 {
-				ctx, cancel = context.WithTimeout(ctx, registry.config.Database.DrainTimeout)
-				defer cancel()
-			}
-
-			if err := registry.app.GracefulShutdown(ctx); err != nil {
-				return err
-			}
+		if err := registry.app.GracefulShutdown(context.Background()); err != nil {
+			return err
 		}
 
 		l.Info("graceful shutdown successful")
