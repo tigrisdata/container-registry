@@ -100,7 +100,13 @@ var (
 	ErrDatabaseInUse = errors.New(`registry metadata database in use, please enable the database https://docs.gitlab.com/ee/administration/packages/container_registry_metadata_database.html`)
 )
 
-type shutdownFunc func(app *App, errCh chan error, l dlog.Logger)
+type (
+	shutdownFunc   func(app *App, errCh chan error, l dlog.Logger)
+	shutdownConfig struct {
+		sFunc    shutdownFunc
+		sTimeout time.Duration
+	}
+)
 
 // App is a global registry application object. Shared resources can be placed
 // on this object that will be accessible from all requests. Any writable
@@ -153,10 +159,10 @@ type App struct {
 
 	healthRegistry *health.Registry
 
-	// shutdownFuncs is the slice of functions/code that needs to be called
+	// shutdownConfigs is the slice of functions/code that needs to be called
 	// during app object termination in order to gracefully clean up
 	// resources/terminate goroutines
-	shutdownFuncs []shutdownFunc
+	shutdownConfigs []shutdownConfig
 
 	// DBStatusChecker is responsible for checking/updating the status of the DB
 	// and replicas in the background.
@@ -171,7 +177,7 @@ func NewApp(ctx context.Context, config *configuration.Configuration) (*App, err
 		Config:  config,
 		Context: ctx,
 
-		shutdownFuncs: make([]shutdownFunc, 0),
+		shutdownConfigs: make([]shutdownConfig, 0),
 	}
 
 	if err := app.initMetaRouter(); err != nil {
@@ -529,6 +535,7 @@ func NewApp(ctx context.Context, config *configuration.Configuration) (*App, err
 				}
 				errCh <- err
 			},
+			config.Database.DrainTimeout,
 		)
 		options = append(options, storage.Database(app.db))
 
@@ -947,6 +954,7 @@ func (app *App) RegisterHealthChecks(healthRegistries ...*health.Registry) error
 			}
 			errCh <- err
 		},
+		time.Duration(0),
 	)
 
 	if app.Config.Health.StorageDriver.Enabled {
@@ -1148,6 +1156,7 @@ func (app *App) configureEvents(registryConfig *configuration.Configuration) {
 			}
 			errCh <- err
 		},
+		time.Duration(0),
 	)
 
 	// Populate registry event source
@@ -2145,6 +2154,7 @@ func (app *App) applyStorageMiddleware(middlewares []configuration.Middleware) e
 					l.Info("shutting down storage middleware")
 					errCh <- stopF()
 				},
+				time.Duration(0),
 			)
 		}
 		app.driver = smw
@@ -2271,24 +2281,49 @@ func startUploadPurger(ctx context.Context, storageDriver storagedriver.StorageD
 	return nil
 }
 
-func (app *App) registerShutdownFunc(f shutdownFunc) {
-	app.shutdownFuncs = append(app.shutdownFuncs, f)
+func (app *App) registerShutdownFunc(sFunc shutdownFunc, sTimeout time.Duration) {
+	app.shutdownConfigs = append(
+		app.shutdownConfigs,
+		shutdownConfig{
+			sFunc:    sFunc,
+			sTimeout: sTimeout,
+		},
+	)
 }
 
 // GracefulShutdown allows the app to free any resources before shutdown.
 func (app *App) GracefulShutdown(ctx context.Context) error {
 	errs := new(multierror.Error)
 	l := dlog.GetLogger(dlog.WithContext(ctx))
-	errCh := make(chan error, len(app.shutdownFuncs))
+	errCh := make(chan error, len(app.shutdownConfigs))
 
 	// NOTE(prozlach): it is important that we are quick during shutdown, as
 	// e.g. k8s can forcefully terminate the pod with SIGKILL if the shutdown
 	// takes too long.
-	for _, f := range app.shutdownFuncs {
-		go f(app, errCh, l)
+	var timeout time.Duration
+	for _, sc := range app.shutdownConfigs {
+		if sc.sTimeout > 0 {
+			if timeout > 0 {
+				timeout = min(timeout, sc.sTimeout)
+			} else {
+				timeout = sc.sTimeout
+			}
+		}
+		go sc.sFunc(app, errCh, l)
 	}
 
-	for i := 0; i < len(app.shutdownFuncs); i++ {
+	if timeout > 0 {
+		var cancel context.CancelFunc
+		// NOTE(prozlach): "downstream" context will not extend the timeout of
+		// the "upstream" context.
+		// So if there is already a timeout set for shutdown, the new one will
+		// be not affect the one that is already set if the new one is further
+		// into the future.
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+
+	for i := 0; i < len(app.shutdownConfigs); i++ {
 		select {
 		case <-ctx.Done():
 			return fmt.Errorf("app shutdown failed: %w", ctx.Err())
@@ -2453,6 +2488,7 @@ func (app *App) initializeRowCountCollector(config *configuration.Configuration)
 			l.Info("database row count metrics collector has been shut down")
 			errCh <- nil
 		},
+		time.Duration(0),
 	)
 
 	return nil
@@ -2493,6 +2529,7 @@ func (app *App) initializeBBMProgressCollector(config *configuration.Configurati
 			bbmCollector.Stop()
 			errCh <- nil
 		},
+		time.Duration(0),
 	)
 	return nil
 }

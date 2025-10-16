@@ -23,6 +23,7 @@ import (
 	"path"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -140,36 +141,57 @@ func TestGracefulShutdown_HTTPDrainTimeout(t *testing.T) {
 	require.NoError(t, err)
 
 	// run registry server
-	var errChan chan error
+	errChan := make(chan error, 1)
+	wg := new(sync.WaitGroup)
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		errChan <- registry.ListenAndServe()
 	}()
+	t.Cleanup(
+		func() {
+			t.Log("waiting for registry termination")
+			wg.Wait()
+			t.Log("registry terminated")
+		},
+	)
+
+	// Wait for some time for server to start listening
+	timer := time.NewTimer(3 * time.Second)
 	select {
 	case err = <-errChan:
 		require.NoError(t, err, "error listening")
-	default:
+	case <-timer.C:
 	}
-
-	// Wait for some unknown random time for server to start listening
-	time.Sleep(3 * time.Second)
 
 	// send incomplete request
 	conn, err := net.Dial("tcp", registry.config.HTTP.Addr)
 	require.NoError(t, err)
-	_, err = fmt.Fprintf(conn, "GET /v2/ ")
+	toSent := "GET /v2/ "
+	n, err := io.WriteString(conn, toSent)
 	require.NoError(t, err)
+	require.Equal(t, len(toSent), n)
 
 	// send stop signal
 	quit <- os.Interrupt
-	time.Sleep(100 * time.Millisecond)
+
+	timer = time.NewTimer(2 * time.Second) // drain timeout is 10s, so we still have 8s left to finish the request
+	select {
+	case err = <-errChan:
+		require.NoError(t, err, "error shutting down")
+	case <-timer.C:
+	}
 
 	// try connecting again. it shouldn't
 	_, err = net.Dial("tcp", registry.config.HTTP.Addr)
 	require.Error(t, err)
 
-	// make sure earlier request is not disconnected and response can be received
-	_, err = fmt.Fprintf(conn, "HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")
+	toSent = "HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n"
+	n, err = io.WriteString(conn, toSent)
 	require.NoError(t, err)
+	require.Equal(t, len(toSent), n)
+
+	// make sure earlier request is not disconnected and response can be received
 	resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
 	require.NoError(t, err)
 	defer resp.Body.Close()
