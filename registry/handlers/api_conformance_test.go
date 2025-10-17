@@ -507,7 +507,7 @@ func manifestGetSchema2NonMatchingEtag(t *testing.T, opts ...configOpt) {
 			err = dec.Decode(&fetchedManifest)
 			require.NoError(tt, err)
 
-			require.EqualValues(tt, deserializedManifest, fetchedManifest)
+			require.Equal(tt, deserializedManifest, fetchedManifest)
 
 			if env.ns != nil {
 				sizeStr := resp.Header.Get("Content-Length")
