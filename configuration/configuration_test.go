@@ -55,7 +55,7 @@ var configStruct = Configuration{
 		},
 	},
 	Database: Database{
-		Enabled:  true,
+		Enabled:  DatabaseEnabledTrue,
 		Host:     "localhost",
 		Port:     5432,
 		User:     "postgres",
@@ -333,7 +333,7 @@ func (s *ConfigSuite) TestParseSimple() {
 func (s *ConfigSuite) TestParseInmemory() {
 	s.expectedConfig.Storage = Storage{"inmemory": Parameters{}}
 	s.expectedConfig.Database = Database{
-		Enabled: true,
+		Enabled: DatabaseEnabledTrue,
 		BackgroundMigrations: BackgroundMigrations{
 			Enabled:       true,
 			MaxJobRetries: 1,
@@ -720,7 +720,7 @@ storage: inmemory
 // TestParseWithDifferentEnvDatabase validates that environment variables properly override database parameters
 func (s *ConfigSuite) TestParseWithDifferentEnvDatabase() {
 	expected := Database{
-		Enabled:  true,
+		Enabled:  DatabaseEnabledTrue,
 		Host:     "127.0.0.1",
 		Port:     1234,
 		User:     "user",
@@ -743,7 +743,7 @@ func (s *ConfigSuite) TestParseWithDifferentEnvDatabase() {
 	}
 	s.expectedConfig.Database = expected
 
-	err := os.Setenv("REGISTRY_DATABASE_DISABLE", strconv.FormatBool(expected.Enabled))
+	err := os.Setenv("REGISTRY_DATABASE_DISABLE", strconv.FormatBool(expected.IsEnabled()))
 	require.NoError(s.T(), err)
 	err = os.Setenv("REGISTRY_DATABASE_HOST", expected.Host)
 	require.NoError(s.T(), err)
@@ -3241,4 +3241,47 @@ database:
 	}
 
 	testParameter(t, yml, "REGISTRY_DATABASE_METRICS_LEASEDURATION", tt, validator)
+}
+
+func TestParseDatabaseEnabled(t *testing.T) {
+	yml := `
+version: 0.1
+storage: inmemory
+database:
+    enabled: %s
+`
+	tt := []parameterTest{
+		{
+			name:  "string true",
+			value: "true",
+			want:  DatabaseEnabledTrue,
+		},
+		{
+			name:  "string false",
+			value: "false",
+			want:  DatabaseEnabledFalse,
+		},
+		{
+			name:  "prefer",
+			value: "prefer",
+			want:  DatabaseEnabledPrefer,
+		},
+		{
+			name:    "typo",
+			value:   "perfer",
+			wantErr: true,
+			err:     fmt.Sprintf("invalid database.enabled value: %q, valid values: false, true, prefer", "perfer"),
+		},
+		{
+			name:  "default",
+			value: "",
+			want:  DatabaseEnabledFalse,
+		},
+	}
+
+	validator := func(t *testing.T, want any, got *Configuration) {
+		require.Equal(t, want, got.Database.Enabled)
+	}
+
+	testParameter(t, yml, "REGISTRY_DATABASE_ENABLED", tt, validator)
 }

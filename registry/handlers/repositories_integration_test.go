@@ -81,7 +81,7 @@ func newTestEnv(t *testing.T) *testEnv {
 		},
 		GC: configuration.GC{Disabled: true},
 		Database: configuration.Database{
-			Enabled:     true,
+			Enabled:     configuration.DatabaseEnabledTrue,
 			Host:        dbDSN.Host,
 			Port:        dbDSN.Port,
 			User:        dbDSN.User,

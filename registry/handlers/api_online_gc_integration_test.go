@@ -62,7 +62,7 @@ func TestTagsAPI_Delete_OnlineGC_BlocksAndResumesAfterGCReview(t *testing.T) {
 	env := newTestEnv(t, withDelete, withoutOnlineGCReviewDelay)
 	defer env.Shutdown()
 
-	if !env.config.Database.Enabled {
+	if !env.config.Database.IsEnabled() {
 		t.Skip("skipping test because the metadata database is not enabled")
 	}
 
@@ -110,7 +110,7 @@ func TestTagsAPI_Delete_OnlineGC_TimeoutOnProlongedReview(t *testing.T) {
 	env := newTestEnv(t, withDelete, withoutOnlineGCReviewDelay)
 	defer env.Shutdown()
 
-	if !env.config.Database.Enabled {
+	if !env.config.Database.IsEnabled() {
 		t.Skip("skipping test because the metadata database is not enabled")
 	}
 
@@ -149,7 +149,7 @@ func TestManifestsAPI_DeleteList_OnlineGC_BlocksAndResumesAfterGCReview(t *testi
 	env := newTestEnv(t, withDelete, withoutOnlineGCReviewDelay)
 	defer env.Shutdown()
 
-	if !env.config.Database.Enabled {
+	if !env.config.Database.IsEnabled() {
 		t.Skip("skipping test because the metadata database is not enabled")
 	}
 
@@ -193,7 +193,7 @@ func TestManifestsAPI_DeleteList_OnlineGC_TimeoutOnProlongedReview(t *testing.T)
 	env := newTestEnv(t, withDelete, withoutOnlineGCReviewDelay)
 	defer env.Shutdown()
 
-	if !env.config.Database.Enabled {
+	if !env.config.Database.IsEnabled() {
 		t.Skip("skipping test because the metadata database is not enabled")
 	}
 
@@ -227,7 +227,7 @@ func TestManifestsAPI_Tag_OnlineGC_BlocksAndResumesAfterGCReview(t *testing.T) {
 	env := newTestEnv(t, withDelete, withoutOnlineGCReviewDelay)
 	defer env.Shutdown()
 
-	if !env.config.Database.Enabled {
+	if !env.config.Database.IsEnabled() {
 		t.Skip("skipping test because the metadata database is not enabled")
 	}
 
@@ -277,7 +277,7 @@ func TestManifestsAPI_Tag_OnlineGC_BlocksAndResumesAfterGCReview_DanglingManifes
 	env := newTestEnv(t, withDelete, withoutOnlineGCReviewDelay)
 	defer env.Shutdown()
 
-	if !env.config.Database.Enabled {
+	if !env.config.Database.IsEnabled() {
 		t.Skip("skipping test because the metadata database is not enabled")
 	}
 
@@ -328,7 +328,7 @@ func TestManifestsAPI_Tag_OnlineGC_TimeoutOnProlongedReview(t *testing.T) {
 	env := newTestEnv(t, withoutOnlineGCReviewDelay)
 	defer env.Shutdown()
 
-	if !env.config.Database.Enabled {
+	if !env.config.Database.IsEnabled() {
 		t.Skip("skipping test because the metadata database is not enabled")
 	}
 
@@ -367,7 +367,7 @@ func TestManifestsAPI_CreateList_OnlineGC_BlocksAndResumesAfterGCReview(t *testi
 	env := newTestEnv(t, withDelete, withoutOnlineGCReviewDelay)
 	defer env.Shutdown()
 
-	if !env.config.Database.Enabled {
+	if !env.config.Database.IsEnabled() {
 		t.Skip("skipping test because the metadata database is not enabled")
 	}
 
@@ -447,7 +447,7 @@ func TestManifestsAPI_CreateList_OnlineGC_TimeoutOnProlongedReview(t *testing.T)
 	env := newTestEnv(t, withDelete, withoutOnlineGCReviewDelay)
 	defer env.Shutdown()
 
-	if !env.config.Database.Enabled {
+	if !env.config.Database.IsEnabled() {
 		t.Skip("skipping test because the metadata database is not enabled")
 	}
 
@@ -519,7 +519,7 @@ func TestManifestsAPI_CreateList_OnlineGC_BlocksAndResumesAfterGCReview_Dangling
 	env := newTestEnv(t, withDelete, withoutOnlineGCReviewDelay)
 	defer env.Shutdown()
 
-	if !env.config.Database.Enabled {
+	if !env.config.Database.IsEnabled() {
 		t.Skip("skipping test because the metadata database is not enabled")
 	}
 

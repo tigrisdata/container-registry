@@ -113,7 +113,7 @@ func withSchema1PreseededInMemoryDriver(config *configuration.Configuration) {
 }
 
 func withDBDisabled(config *configuration.Configuration) {
-	config.Database.Enabled = false
+	config.Database.Enabled = configuration.DatabaseEnabledFalse
 }
 
 func withDBHostAndPort(host string, port int) configOpt {
@@ -231,7 +231,7 @@ func newConfig(opts ...configOpt) configuration.Configuration {
 		}
 
 		config.Database = configuration.Database{
-			Enabled:     true,
+			Enabled:     configuration.DatabaseEnabledTrue,
 			Host:        dsn.Host,
 			Port:        dsn.Port,
 			User:        dsn.User,
@@ -398,7 +398,7 @@ type testEnv struct {
 }
 
 func (e *testEnv) requireDB(t *testing.T) {
-	if !e.config.Database.Enabled {
+	if !e.config.Database.IsEnabled() {
 		t.Skip("skipping test because the metadata database is not enabled")
 	}
 }
@@ -416,7 +416,7 @@ func newTestEnvWithConfig(t *testing.T, config *configuration.Configuration) *te
 	// shutdown so that environments come up with a fresh copy of the database.
 	var db datastore.LoadBalancer
 	var err error
-	if config.Database.Enabled {
+	if config.Database.IsEnabled() {
 		db, err = datastoretestutil.NewDBFromConfig(config)
 		if err != nil {
 			t.Fatal(err)
@@ -458,7 +458,7 @@ func newTestEnvWithConfig(t *testing.T, config *configuration.Configuration) *te
 
 	var notifServer *internaltestutil.NotificationServer
 	if len(config.Notifications.Endpoints) == 1 {
-		notifServer = internaltestutil.NewNotificationServer(t, config.Database.Enabled)
+		notifServer = internaltestutil.NewNotificationServer(t, config.Database.IsEnabled())
 		// ensure URL is set properly with mock server URL
 		config.Notifications.Endpoints[0].URL = notifServer.URL
 	}
@@ -503,7 +503,7 @@ func (e *testEnv) Shutdown() {
 			panic(err)
 		}
 
-		if e.config.Database.Enabled {
+		if e.config.Database.IsEnabled() {
 			if err := datastoretestutil.TruncateAllTables(e.db.Primary()); err != nil {
 				panic(err)
 			}

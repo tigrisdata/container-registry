@@ -388,7 +388,7 @@ func NewApp(ctx context.Context, config *configuration.Configuration) (*App, err
 	fsLocker := &storage.FilesystemInUseLocker{Driver: app.driver}
 	dbLocker := &storage.DatabaseInUseLocker{Driver: app.driver}
 	// Connect to the metadata database, if enabled.
-	if config.Database.Enabled {
+	if config.Database.IsEnabled() {
 		// Temporary measure to enforce lock files while all the implementation is done
 		// Seehttps://gitlab.com/gitlab-org/container-registry/-/issues/1335
 		if feature.EnforceLockfiles.Enabled() {
@@ -583,7 +583,7 @@ func NewApp(ctx context.Context, config *configuration.Configuration) (*App, err
 	//
 	// For now, disabling concurrent use of the metadata database and cache
 	// decreases the surface area which we are testing during database development.
-	if cc, ok := config.Storage["cache"]; ok && !config.Database.Enabled {
+	if cc, ok := config.Storage["cache"]; ok && !config.Database.IsEnabled() {
 		v, ok := cc["blobdescriptor"]
 		if !ok {
 			// Backwards compatible: "layerinfo" == "blobdescriptor"
@@ -607,7 +607,7 @@ func NewApp(ctx context.Context, config *configuration.Configuration) (*App, err
 				log.WithField("type", config.Storage["cache"]).Warn("unknown cache type, caching disabled")
 			}
 		}
-	} else if ok && config.Database.Enabled {
+	} else if ok && config.Database.IsEnabled() {
 		log.Warn("blob descriptor cache is not compatible with metadata database, caching disabled")
 	}
 
@@ -620,7 +620,7 @@ func NewApp(ctx context.Context, config *configuration.Configuration) (*App, err
 	}
 
 	// Check filesystem lock file after registry is initialized
-	if !config.Database.Enabled {
+	if !config.Database.IsEnabled() {
 		if err := app.handleFilesystemLockFile(ctx, dbLocker, fsLocker); err != nil {
 			return nil, err
 		}
@@ -738,7 +738,7 @@ var (
 )
 
 func updateOnlineGCSettings(ctx context.Context, db datastore.Queryer, config *configuration.Configuration) error {
-	if !config.Database.Enabled || config.GC.Disabled || (config.GC.Blobs.Disabled && config.GC.Manifests.Disabled) {
+	if !config.Database.IsEnabled() || config.GC.Disabled || (config.GC.Blobs.Disabled && config.GC.Manifests.Disabled) {
 		return nil
 	}
 	if config.GC.ReviewAfter == 0 {
@@ -784,7 +784,7 @@ func updateOnlineGCSettings(ctx context.Context, db datastore.Queryer, config *c
 }
 
 func startOnlineGC(ctx context.Context, db *datastore.DB, storageDriver storagedriver.StorageDriver, config *configuration.Configuration) {
-	if !config.Database.Enabled || config.GC.Disabled || (config.GC.Blobs.Disabled && config.GC.Manifests.Disabled) {
+	if !config.Database.IsEnabled() || config.GC.Disabled || (config.GC.Blobs.Disabled && config.GC.Manifests.Disabled) {
 		return
 	}
 
@@ -988,7 +988,7 @@ func (app *App) RegisterHealthChecks(healthRegistries ...*health.Registry) error
 	}
 
 	if app.Config.Health.Database.Enabled {
-		if !app.Config.Database.Enabled {
+		if !app.Config.Database.IsEnabled() {
 			logger.Warn("ignoring database health checks settings as metadata database is not enabled")
 		} else {
 			interval := app.Config.Health.Database.Interval
@@ -1431,14 +1431,14 @@ func (app *App) initMetaRouter() error {
 		app.router.gitlab.Use(app.RateLimiterMiddleware)
 	}
 
-	if app.Config.Database.Enabled && app.Config.Database.LoadBalancing.Enabled {
+	if app.Config.Database.IsEnabled() && app.Config.Database.LoadBalancing.Enabled {
 		app.router.distribution.Use(app.recordLSNMiddleware)
 		app.router.gitlab.Use(app.recordLSNMiddleware)
 	}
 
 	// Register the handler dispatchers.
 	app.registerDistribution(v2.RouteNameBase, func(_ *Context, _ *http.Request) http.Handler {
-		return distributionAPIBase(app.Config.Database.Enabled)
+		return distributionAPIBase(app.Config.Database.IsEnabled())
 	})
 	app.registerDistribution(v2.RouteNameManifest, manifestDispatcher)
 	app.registerDistribution(v2.RouteNameCatalog, catalogDispatcher)
@@ -1449,7 +1449,7 @@ func (app *App) initMetaRouter() error {
 
 	// Register Gitlab handlers dispatchers.
 
-	h := dbAssertionhandler{dbEnabled: app.Config.Database.Enabled}
+	h := dbAssertionhandler{dbEnabled: app.Config.Database.IsEnabled()}
 
 	app.registerGitlab(v1.Base, h.wrap(func(*Context, *http.Request) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1618,7 +1618,7 @@ func (app *App) dispatcher(dispatch dispatchFunc) http.Handler {
 		r = r.WithContext(ctx)
 
 		// get all metadata either from the database or from the filesystem
-		if app.Config.Database.Enabled {
+		if app.Config.Database.IsEnabled() {
 			ctx.useDatabase = true
 		}
 

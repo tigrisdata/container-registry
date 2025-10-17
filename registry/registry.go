@@ -424,7 +424,7 @@ func configureMonitoring(ctx context.Context, config *configuration.Configuratio
 
 		// This ensures the DBStatusChecker is non-nil, because it has been set in
 		// App.RegisterHealthChecks
-		if config.Health.Database.Enabled && config.Database.Enabled {
+		if config.Health.Database.Enabled && config.Database.IsEnabled() {
 			mux.Handle("/debug/health/db", dbStatusChecker)
 			l.WithFields(log.Fields{"address": addr, "path": "/debug/health/db"}).Info("serving DB health checker")
 		}

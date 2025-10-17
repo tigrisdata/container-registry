@@ -186,7 +186,7 @@ var GCCmd = &cobra.Command{
 			return fmt.Errorf("configuration error: %w", err)
 		}
 
-		if config.Database.Enabled {
+		if config.Database.IsEnabled() {
 			return errors.New("the garbage-collect command is not compatible with database metadata, please use online garbage collection instead")
 		}
 

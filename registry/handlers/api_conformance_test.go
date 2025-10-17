@@ -613,7 +613,7 @@ func baseURLAuth(t *testing.T, opts ...configOpt) {
 	}
 
 	// The v1 API base route returns 404s if the database is not enabled.
-	if env.config.Database.Enabled {
+	if env.config.Database.IsEnabled() {
 		gitLabV1Base, err := env.builder.BuildGitlabV1BaseURL()
 		require.NoError(t, err)
 
@@ -650,7 +650,7 @@ func baseURLAuth(t *testing.T, opts ...configOpt) {
 
 			if test.wantExtFeatures {
 				require.Equal(t, version.ExtFeatures, resp.Header.Get("Gitlab-Container-Registry-Features"))
-				require.Equal(t, strconv.FormatBool(env.config.Database.Enabled), resp.Header.Get("Gitlab-Container-Registry-Database-Enabled"))
+				require.Equal(t, strconv.FormatBool(env.config.Database.IsEnabled()), resp.Header.Get("Gitlab-Container-Registry-Database-Enabled"))
 			} else {
 				require.Empty(t, resp.Header.Get("Gitlab-Container-Registry-Features"))
 			}
@@ -707,7 +707,7 @@ func baseURLPrefix(t *testing.T, opts ...configOpt) {
 	defer resp.Body.Close()
 
 	// The V1 API base route returns 404s if the database is not enabled.
-	if env.config.Database.Enabled {
+	if env.config.Database.IsEnabled() {
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 		require.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 		require.Equal(t, "2", resp.Header.Get("Content-Length"))
@@ -3108,7 +3108,7 @@ func tagsGet(t *testing.T, opts ...configOpt) {
 
 	for _, test := range tt {
 		t.Run(test.name, func(t *testing.T) {
-			if !test.runWithoutDBEnabled && !env.config.Database.Enabled {
+			if !test.runWithoutDBEnabled && !env.config.Database.IsEnabled() {
 				t.Skip("skipping test because the metadata database is not enabled")
 			}
 
