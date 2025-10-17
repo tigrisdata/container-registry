@@ -1741,7 +1741,7 @@ func logIfManifestListInvalid(ctx context.Context, ml *manifestlist.Deserialized
 		return
 	}
 
-	seenUnknownReferenceMediaTypes := make(map[string]struct{}, 0)
+	seenUnknownReferenceMediaTypes := make(map[string]struct{})
 	var unknownReferenceMediaTypes []string
 
 	for _, desc := range mlcompat.References(ml).Blobs {
