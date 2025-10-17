@@ -1226,7 +1226,7 @@ func dbPutManifestList(imh *manifestHandler, manifestList *manifestlist.Deserial
 	// conditions around the manifest list insert. See:
 	// https://gitlab.com/gitlab-org/container-registry/-/blob/master/docs/spec/gitlab/online-garbage-collection.md#creating-a-manifest-list-referencing-an-unreferenced-manifest
 	mm := make([]*models.Manifest, 0, len(manifestList.Manifests))
-	ids := make([]int64, 0, len(mm))
+	ids := make([]int64, 0, len(manifestList.Manifests))
 	for _, desc := range manifestList.Manifests {
 		m, err := dbFindManifestListManifest(imh.Context, rStore, r, desc.Digest, r.Path)
 		if err != nil {
