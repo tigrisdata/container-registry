@@ -63,12 +63,12 @@ func TestBlobAPI_Get_BlobNotInDatabase(t *testing.T) {
 	env := newTestEnv(t)
 	defer env.Shutdown()
 
-	if !env.config.Database.Enabled {
+	if !env.config.Database.IsEnabled() {
 		t.Skip("skipping test because the metadata database is not enabled")
 	}
 
 	// Disable the database so writes only go to the filesytem.
-	env.config.Database.Enabled = false
+	env.config.Database.Enabled = configuration.DatabaseEnabledFalse
 
 	// create repository with a layer
 	args := makeBlobArgs(t)
@@ -76,7 +76,7 @@ func TestBlobAPI_Get_BlobNotInDatabase(t *testing.T) {
 	blobURL := pushLayer(t, env.builder, args.imageName, args.layerDigest, uploadURLBase, args.layerFile)
 
 	// Enable the database again so that reads first check the database.
-	env.config.Database.Enabled = true
+	env.config.Database.Enabled = configuration.DatabaseEnabledTrue
 
 	// fetch layer
 	res, err := http.Get(blobURL)
@@ -836,7 +836,7 @@ func TestManifestAPI_Put_Schema2LayersNotAssociatedWithRepositoryButArePresentIn
 	tagName := "schema2missinglayerstag"
 	repoPath := "schema2/missinglayers"
 
-	if !env.config.Database.Enabled {
+	if !env.config.Database.IsEnabled() {
 		t.Skip("skipping test because the metadata database is not enabled")
 	}
 
@@ -875,13 +875,13 @@ func TestManifestAPI_Put_Schema2LayersNotAssociatedWithRepositoryButArePresentIn
 		pushLayer(t, env.builder, fakeRepoRef, dgst, uploadURLBase, bytes.NewReader(layerBytes))
 
 		// Disable the database so writes only go to the filesytem.
-		env.config.Database.Enabled = false
+		env.config.Database.Enabled = configuration.DatabaseEnabledFalse
 
 		uploadURLBase, _ = startPushLayer(t, env, repoRef)
 		pushLayer(t, env.builder, repoRef, dgst, uploadURLBase, bytes.NewReader(layerBytes))
 
 		// Enable the database again so that reads first check the database.
-		env.config.Database.Enabled = true
+		env.config.Database.Enabled = configuration.DatabaseEnabledTrue
 
 		testManifest.Layers[i] = distribution.Descriptor{
 			Digest:    dgst,
@@ -1091,7 +1091,7 @@ func TestManifestAPI_Get_Schema1(t *testing.T) {
 	defer env.Shutdown()
 
 	// Seed manifest in database directly since schema1 manifests are unpushable.
-	if env.config.Database.Enabled {
+	if env.config.Database.IsEnabled() {
 		repositoryStore := datastore.NewRepositoryStore(env.db.Primary())
 		dbRepo, err := repositoryStore.CreateByPath(env.ctx, preseededSchema1RepoPath)
 		require.NoError(t, err)
@@ -1206,7 +1206,7 @@ func TestManifestAPI_Delete_ManifestReferencedByList(t *testing.T) {
 	env := newTestEnv(t, withDelete)
 	defer env.Shutdown()
 
-	if !env.config.Database.Enabled {
+	if !env.config.Database.IsEnabled() {
 		t.Skip("skipping test because the metadata database is not enabled")
 	}
 
@@ -1233,7 +1233,7 @@ func TestManifestAPI_Put_DatabaseEnabled_InvalidConfigMediaType(t *testing.T) {
 	env := newTestEnv(t)
 	defer env.Shutdown()
 
-	if !env.config.Database.Enabled {
+	if !env.config.Database.IsEnabled() {
 		t.Skip("skipping test because the metadata database is not enabled")
 	}
 
@@ -2050,7 +2050,7 @@ func TestManifestAPI_Get_Config(t *testing.T) {
 	defer env.Shutdown()
 
 	// disable the database so writes only go to the filesystem
-	env.config.Database.Enabled = false
+	env.config.Database.Enabled = configuration.DatabaseEnabledFalse
 
 	// create repository with a manifest
 	repo, err := reference.WithName("foo/bar")
@@ -3102,7 +3102,7 @@ func TestManifestAPI_Put_ImmutableTags(t *testing.T) {
 	env := newTestEnv(t)
 	t.Cleanup(env.Shutdown)
 
-	if !env.config.Database.Enabled {
+	if !env.config.Database.IsEnabled() {
 		t.Skip("skipping test because the metadata database is not enabled")
 	}
 

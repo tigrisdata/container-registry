@@ -374,7 +374,7 @@ func Test_updateOnlineGCSettings_SkipIfGCDisabled(t *testing.T) {
 
 	config := &configuration.Configuration{
 		Database: configuration.Database{
-			Enabled: true,
+			Enabled: configuration.DatabaseEnabledTrue,
 		},
 		GC: configuration.GC{
 			Disabled: true,
@@ -391,7 +391,7 @@ func Test_updateOnlineGCSettings_SkipIfAllGCWorkersDisabled(t *testing.T) {
 
 	config := &configuration.Configuration{
 		Database: configuration.Database{
-			Enabled: true,
+			Enabled: configuration.DatabaseEnabledTrue,
 		},
 		GC: configuration.GC{
 			Blobs: configuration.GCBlobs{
@@ -413,7 +413,7 @@ func Test_updateOnlineGCSettings_SkipIfReviewAfterNotSet(t *testing.T) {
 
 	config := &configuration.Configuration{
 		Database: configuration.Database{
-			Enabled: true,
+			Enabled: configuration.DatabaseEnabledTrue,
 		},
 	}
 
@@ -443,7 +443,7 @@ func Test_updateOnlineGCSettings(t *testing.T) {
 
 	config := &configuration.Configuration{
 		Database: configuration.Database{
-			Enabled: true,
+			Enabled: configuration.DatabaseEnabledTrue,
 		},
 		GC: configuration.GC{
 			ReviewAfter: 10 * time.Minute,
@@ -482,7 +482,7 @@ func Test_updateOnlineGCSettings_NoReviewDelay(t *testing.T) {
 
 	config := &configuration.Configuration{
 		Database: configuration.Database{
-			Enabled: true,
+			Enabled: configuration.DatabaseEnabledTrue,
 		},
 		GC: configuration.GC{
 			ReviewAfter: -1,
@@ -516,7 +516,7 @@ func Test_updateOnlineGCSettings_NoRowsUpdated(t *testing.T) {
 
 	config := &configuration.Configuration{
 		Database: configuration.Database{
-			Enabled: true,
+			Enabled: configuration.DatabaseEnabledTrue,
 		},
 		GC: configuration.GC{
 			ReviewAfter: 10 * time.Minute,
@@ -546,7 +546,7 @@ func Test_updateOnlineGCSettings_Error(t *testing.T) {
 
 	config := &configuration.Configuration{
 		Database: configuration.Database{
-			Enabled: true,
+			Enabled: configuration.DatabaseEnabledTrue,
 		},
 		GC: configuration.GC{
 			ReviewAfter: 10 * time.Minute,
@@ -576,7 +576,7 @@ func Test_updateOnlineGCSettings_Timeout(t *testing.T) {
 
 	config := &configuration.Configuration{
 		Database: configuration.Database{
-			Enabled: true,
+			Enabled: configuration.DatabaseEnabledTrue,
 		},
 		GC: configuration.GC{
 			ReviewAfter: 10 * time.Minute,
@@ -830,7 +830,7 @@ func TestRecordLSNMiddleware(t *testing.T) {
 	app := &App{
 		Config: &configuration.Configuration{
 			Database: configuration.Database{
-				Enabled: true,
+				Enabled: configuration.DatabaseEnabledTrue,
 				LoadBalancing: configuration.DatabaseLoadBalancing{
 					Enabled: true,
 				},
@@ -962,19 +962,19 @@ func TestNewApp_Locks_Errors(t *testing.T) {
 
 	tcs := map[string]struct {
 		rootdir         string
-		databaseEnabled bool
+		databaseEnabled configuration.DatabaseEnabled
 		expectedError   error
 	}{
 		"database in use": {
 			rootdir: "../datastore/testdata/fixtures/importer/lockfile-db-in-use",
 			// disabling the database when database-in-use exists should error out
-			databaseEnabled: false,
+			databaseEnabled: configuration.DatabaseEnabledFalse,
 			expectedError:   ErrDatabaseInUse,
 		},
 		"filesystem in use": {
 			rootdir: "../datastore/testdata/fixtures/importer/happy-path",
 			// enabling the database when filesystem-in-use exists should error out
-			databaseEnabled: true,
+			databaseEnabled: configuration.DatabaseEnabledTrue,
 			expectedError:   ErrFilesystemInUse,
 		},
 		// we cannot test the scenario where the FF is disabled
@@ -1074,7 +1074,7 @@ func TestDispatcherGitlab_RepoCacheInitialization(t *testing.T) {
 			app := &App{
 				Config: &configuration.Configuration{
 					Database: configuration.Database{
-						Enabled: true,
+						Enabled: configuration.DatabaseEnabledTrue,
 					},
 				},
 				Context:  ctx,

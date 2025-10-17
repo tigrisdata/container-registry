@@ -919,7 +919,7 @@ func generateDBConfig(t *testing.T, dbHost string, dbPort int, dbUser, dbPasswor
 	config := configuration.Configuration{
 		Version: "0.1",
 		Database: configuration.Database{
-			Enabled:  true,
+			Enabled:  configuration.DatabaseEnabledTrue,
 			Host:     dbHost,
 			Port:     dbPort,
 			User:     dbUser,
