@@ -1663,7 +1663,7 @@ func TestGitlabAPI_RenameRepository_WithNoBaseRepository(t *testing.T) {
 			envAuth.Cleanup(tt)
 
 			// create and execute test request
-			u, err := envAuth.builder.BuildGitlabV1RepositoryURL(baseRepoName, test.queryParams)
+			u, err := envAuth.builder.BuildGitlabV1RepositoryURL(baseRepoName, tc.queryParams)
 			require.NoError(tt, err)
 
 			req, err := http.NewRequest(http.MethodPatch, u, bytes.NewReader(tc.requestBody))
@@ -1815,7 +1815,7 @@ func TestGitlabAPI_RenameRepository_WithBaseRepository(t *testing.T) {
 			envPost.Cleanup(tt)
 
 			// create request
-			u, err := envPost.builder.BuildGitlabV1RepositoryURL(baseRepoName, test.queryParams)
+			u, err := envPost.builder.BuildGitlabV1RepositoryURL(baseRepoName, tc.queryParams)
 			require.NoError(tt, err)
 
 			req, err := http.NewRequest(http.MethodPatch, u, bytes.NewReader(tc.requestBody))
@@ -1847,8 +1847,8 @@ func TestGitlabAPI_RenameRepository_WithBaseRepository(t *testing.T) {
 			}
 			require.Equal(tt, tc.expectedRespBody, body)
 
-			if test.notificationEnabled {
-				envPost.ns.AssertEventNotification(tt, test.expectedNotification)
+			if tc.notificationEnabled {
+				envPost.ns.AssertEventNotification(tt, tc.expectedNotification)
 			}
 		})
 	}
@@ -2375,8 +2375,8 @@ func TestGitlabAPI_RenameRepositoryNamespace(t *testing.T) {
 				checkBodyHasErrorCodes(tt, "", resp, *tc.expectedRespError)
 			}
 
-			if test.notificationEnabled {
-				envPost.ns.AssertEventNotification(tt, test.expectedNotification)
+			if tc.notificationEnabled {
+				envPost.ns.AssertEventNotification(tt, tc.expectedNotification)
 			}
 		})
 	}

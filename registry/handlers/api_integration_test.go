@@ -2384,7 +2384,6 @@ func TestExistingRenameLease_Checks_Skipped(t *testing.T) {
 	// Apply base registry config/setup (without authorization) to allow seeding repository with test data
 	envMain := newTestEnv(t)
 	envMain.requireDB(t)
-	envMain.Cleanup(t)
 
 	// Seed a repository "foo/bar"
 	repoName := "foo/bar"
@@ -2464,14 +2463,13 @@ func TestExistingRenameLease_Checks_Skipped(t *testing.T) {
 			// Shutdown redis cache before making a request
 			if tc.redisEnabled && tc.redisUnReachable {
 				redisController.Close()
-				t.Cleanup(func() {
-					err := envSubtest.Shutdown()
-					require.Error(t, err)
-					require.Regexp(t, `redis flush: flushing redis cache: dial tcp 127\.0\.0\.1:\d+: connect: connection refused`, err.Error())
-				})
-			} else {
-				envSubtest.Cleanup(t)
 			}
+			t.Cleanup(func() {
+				err := envSubtest.Shutdown()
+				if err != nil {
+					require.Regexp(t, `redis flush: flushing redis cache: dial tcp 127\.0\.0\.1:\d+: connect: connection refused`, err.Error())
+				}
+			})
 			// Try pushing to the repository allegedly undergoing a rename and ensure it is successful.
 			// This signifies that a lease check on the enacted lease is never actioned upon.
 			seedRandomSchema2Manifest(tt, envSubtest, repoName, putByTag("latest"), withAuthToken(testToken))
@@ -2811,10 +2809,10 @@ func TestManifestAPI_Put_ProtectedTags(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(tt *testing.T) {
 			// Pre-create the repository and tag if it's an update scenario
-			if tt.existingTag {
+			if tc.existingTag {
 				noAuthEnv := newTestEnv(tt)
-				t.Cleanup(func() { require.NoError(tt, noAuthEnv.Shutdown()) })
-				seedRandomSchema2Manifest(tt, noAuthEnv, imageName.Name(), putByTag(tt.tag))
+				noAuthEnv.Cleanup(tt)
+				seedRandomSchema2Manifest(tt, noAuthEnv, imageName.Name(), putByTag(tc.tag))
 			}
 
 			// Create auth token with deny access patterns for push action
@@ -3190,10 +3188,10 @@ func TestManifestAPI_Put_ImmutableTags(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(tt *testing.T) {
 			// Pre-create the repository and tag if it's an update scenario
-			if tt.existingTag {
+			if tc.existingTag {
 				noAuthEnv := newTestEnv(tt)
-				tt.Cleanup(noAuthEnv.Shutdown)
-				seedRandomSchema2Manifest(t, noAuthEnv, imageName.Name(), putByTag(tt.tag))
+				noAuthEnv.Cleanup(tt)
+				seedRandomSchema2Manifest(t, noAuthEnv, imageName.Name(), putByTag(tc.tag))
 			}
 
 			// Create auth token with immutable patterns for push action
