@@ -8,6 +8,7 @@ import (
 	"crypto"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand/v2"
@@ -22,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -54,6 +56,7 @@ import (
 	"github.com/docker/distribution/testutil"
 	"github.com/docker/libtrust"
 	gorillahandlers "github.com/gorilla/handlers"
+	"github.com/hashicorp/go-multierror"
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/require"
@@ -385,16 +388,16 @@ func (*schema1PreseededInMemoryDriverFactory) Create(_ map[string]any) (storaged
 }
 
 type testEnv struct {
-	pk           libtrust.PrivateKey
-	ctx          context.Context
-	config       *configuration.Configuration
-	app          *registryhandlers.App
-	server       *httptest.Server
-	builder      *urls.Builder
-	db           datastore.LoadBalancer
-	ns           *internaltestutil.NotificationServer
-	cacheClient  cacheClient
-	shutdownOnce *sync.Once
+	pk          libtrust.PrivateKey
+	ctx         context.Context
+	config      *configuration.Configuration
+	app         *registryhandlers.App
+	server      *httptest.Server
+	builder     *urls.Builder
+	db          datastore.LoadBalancer
+	ns          *internaltestutil.NotificationServer
+	cacheClient cacheClient
+	isShutdown  *atomic.Bool
 }
 
 func (e *testEnv) requireDB(t *testing.T) {
@@ -481,44 +484,65 @@ func newTestEnvWithConfig(t *testing.T, config *configuration.Configuration) *te
 	require.NoError(t, err, "unexpected error generating private key")
 
 	return &testEnv{
-		pk:           pk,
-		ctx:          ctx,
-		config:       config,
-		app:          app,
-		server:       server,
-		builder:      builder,
-		db:           db,
-		ns:           notifServer,
-		cacheClient:  redis,
-		shutdownOnce: new(sync.Once),
+		pk:          pk,
+		ctx:         ctx,
+		config:      config,
+		app:         app,
+		server:      server,
+		builder:     builder,
+		db:          db,
+		ns:          notifServer,
+		cacheClient: redis,
+		isShutdown:  new(atomic.Bool),
 	}
 }
 
-func (e *testEnv) Shutdown() {
-	e.shutdownOnce.Do(func() {
-		e.server.CloseClientConnections()
-		e.server.Close()
+func (e *testEnv) Cleanup(t *testing.T) {
+	t.Cleanup(
+		func() {
+			require.NoError(t, e.Shutdown())
+		},
+	)
+}
 
-		if err := e.app.GracefulShutdown(e.ctx); err != nil {
-			panic(err)
+func (e *testEnv) Shutdown() error {
+	if e.isShutdown.Swap(true) {
+		return errors.New("test env has already been shutdown")
+	}
+
+	// NOTE(prozlach): we avoid here terminating after first error and instead
+	// carry on to try to do best-effort cleanup. E.g. redis cache flush is
+	// independent of database truncation errors so we can try to do both.
+	var errs *multierror.Error
+
+	e.server.CloseClientConnections()
+	e.server.Close()
+
+	err := e.app.GracefulShutdown(e.ctx)
+	if err != nil {
+		errs = multierror.Append(errs, fmt.Errorf("app shutdown: %w", err))
+	}
+
+	if e.config.Database.IsEnabled() {
+		err = datastoretestutil.TruncateAllTables(e.db.Primary())
+		if err != nil {
+			errs = multierror.Append(errs, fmt.Errorf("table truncation: %w", err))
 		}
 
-		if e.config.Database.IsEnabled() {
-			if err := datastoretestutil.TruncateAllTables(e.db.Primary()); err != nil {
-				panic(err)
-			}
-
-			if err := e.db.Close(); err != nil {
-				panic(err)
-			}
+		err = e.db.Close()
+		if err != nil {
+			errs = multierror.Append(errs, fmt.Errorf("db conn close: %w", err))
 		}
+	}
 
-		if e.config.Redis.Cache.Enabled {
-			if err := e.cacheClient.FlushCache(); err != nil {
-				panic(err)
-			}
+	if e.config.Redis.Cache.Enabled {
+		err = e.cacheClient.FlushCache()
+		if err != nil {
+			errs = multierror.Append(errs, fmt.Errorf("redis flush: %w", err))
 		}
-	})
+	}
+
+	return errs.ErrorOrNil()
 }
 
 type subjectManifest interface {

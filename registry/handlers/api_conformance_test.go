@@ -200,7 +200,7 @@ func funcName(f func(*testing.T, ...configOpt)) string {
 
 func manifestPutSchema2ByTagIsIdempotent(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	tagName := "idempotentag"
 	repoPath := "schema2/idempotent"
@@ -239,7 +239,7 @@ func manifestPutSchema2ByTagIsIdempotent(t *testing.T, opts ...configOpt) {
 
 func manifestPutSchema2ByTagSameDigestParallelIsIdempotent(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	tagName1 := "idempotentag-one"
 	tagName2 := "idempotentag-two"
@@ -282,7 +282,7 @@ func manifestPutSchema2ByTagSameDigestParallelIsIdempotent(t *testing.T, opts ..
 // with the same digest in parallel can cause a race condition
 func manifestPutManifestListByTagSameDigestParallelIsIdempotent(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	tagCount := 2
 	repoPath := "schema2/manifest-list/idempotent"
@@ -345,7 +345,7 @@ func manifestPutManifestListByTagSameDigestParallelIsIdempotent(t *testing.T, op
 
 func manifestPutSchema2ReuseTagManifestToManifest(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	tagName := "replacesmanifesttag"
 	repoPath := "schema2/replacesmanifest"
@@ -408,7 +408,7 @@ func manifestPutSchema2ReuseTagManifestToManifest(t *testing.T, opts ...configOp
 
 func manifestPutSchema2ByTag(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	tagName := "schema2happypathtag"
 	repoPath := "schema2/happypath"
@@ -420,7 +420,7 @@ func manifestPutSchema2ByTag(t *testing.T, opts ...configOpt) {
 
 func manifestPutSchema2ByDigest(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	repoPath := "schema2/happypath"
 
@@ -431,7 +431,7 @@ func manifestPutSchema2ByDigest(t *testing.T, opts ...configOpt) {
 
 func manifestGetSchema2NonMatchingEtag(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	tagName := "schema2happypathtag"
 	repoPath := "schema2/happypath"
@@ -523,7 +523,7 @@ func manifestGetSchema2NonMatchingEtag(t *testing.T, opts ...configOpt) {
 
 func manifestGetSchema2MatchingEtag(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	tagName := "schema2happypathtag"
 	repoPath := "schema2/happypath"
@@ -591,7 +591,7 @@ func manifestGetSchema2MatchingEtag(t *testing.T, opts ...configOpt) {
 func baseURLAuth(t *testing.T, opts ...configOpt) {
 	opts = append(opts, withSillyAuth)
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	v2base, err := env.builder.BuildBaseURL()
 	require.NoError(t, err)
@@ -674,7 +674,7 @@ func baseURLPrefix(t *testing.T, opts ...configOpt) {
 	opts = append(opts, withHTTPPrefix(prefix))
 	env := newTestEnv(t, opts...)
 
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	// Test V2 base URL.
 	baseURL, err := env.builder.BuildBaseURL()
@@ -720,7 +720,7 @@ func baseURLPrefix(t *testing.T, opts ...configOpt) {
 
 func manifestPutSchema1ByTag(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	tagName := "schema1tag"
 	repoPath := "schema1"
@@ -773,7 +773,7 @@ func manifestPutSchema1ByTag(t *testing.T, opts ...configOpt) {
 
 func manifestPutSchema2ByDigestConfigNotAssociatedWithRepository(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	repoPath1 := "schema2/layersnotassociated1"
 	repoPath2 := "schema2/layersnotassociated2"
@@ -826,7 +826,7 @@ func manifestPutSchema2ByDigestConfigNotAssociatedWithRepository(t *testing.T, o
 
 func manifestPutSchema2MissingConfig(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	tagName := "schema2missingconfigtag"
 	repoPath := "schema2/missingconfig"
@@ -903,7 +903,7 @@ func manifestPutSchema2MissingConfig(t *testing.T, opts ...configOpt) {
 
 func manifestPutSchema2MissingLayers(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	tagName := "schema2missinglayerstag"
 	repoPath := "schema2/missinglayers"
@@ -979,7 +979,7 @@ func manifestPutSchema2MissingLayers(t *testing.T, opts ...configOpt) {
 
 func manifestPutSchema2MissingConfigAndLayers(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	tagName := "schema2missingconfigandlayerstag"
 	repoPath := "schema2/missingconfigandlayers"
@@ -1061,7 +1061,7 @@ func manifestPutSchema2MissingConfigAndLayers(t *testing.T, opts ...configOpt) {
 func manifestPutSchema2ReferencesExceedLimit(t *testing.T, opts ...configOpt) {
 	opts = append(opts, withReferenceLimit(5))
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	tagName := "schema2toomanylayers"
 	repoPath := "schema2/toomanylayers"
@@ -1143,7 +1143,7 @@ func manifestPutSchema2PayloadSizeExceedsLimit(t *testing.T, opts ...configOpt) 
 
 	opts = append(opts, withPayloadSizeLimit(payloadLimit))
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	tagName := "schema2toobig"
 	repoPath := "schema2/toobig"
@@ -1221,7 +1221,7 @@ func manifestPutSchema2PayloadSizeExceedsLimit(t *testing.T, opts ...configOpt) 
 
 func manifestGetSchema2ByDigestMissingManifest(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	tagName := "missingmanifesttag"
 	repoPath := "schema2/missingmanifest"
@@ -1256,7 +1256,7 @@ func manifestGetSchema2ByDigestMissingManifest(t *testing.T, opts ...configOpt) 
 
 func manifestGetSchema2ByDigestMissingRepository(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	tagName := "missingrepositorytag"
 	repoPath := "schema2/missingrepository"
@@ -1281,7 +1281,7 @@ func manifestGetSchema2ByDigestMissingRepository(t *testing.T, opts ...configOpt
 
 func manifestGetSchema2ByTagMissingRepository(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	tagName := "missingrepositorytag"
 	repoPath := "schema2/missingrepository"
@@ -1306,7 +1306,7 @@ func manifestGetSchema2ByTagMissingRepository(t *testing.T, opts ...configOpt) {
 
 func manifestGetSchema2ByTagMissingTag(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	tagName := "missingtagtag"
 	repoPath := "schema2/missingtag"
@@ -1331,7 +1331,7 @@ func manifestGetSchema2ByTagMissingTag(t *testing.T, opts ...configOpt) {
 
 func manifestGetSchema2ByDigestNotAssociatedWithRepository(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	tagName1 := "missingrepository1tag"
 	repoPath1 := "schema2/missingrepository1"
@@ -1361,7 +1361,7 @@ func manifestGetSchema2ByDigestNotAssociatedWithRepository(t *testing.T, opts ..
 
 func manifestGetSchema2ByTagNotAssociatedWithRepository(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	tagName1 := "missingrepository1tag"
 	repoPath1 := "schema2/missingrepository1"
@@ -1391,7 +1391,7 @@ func manifestGetSchema2ByTagNotAssociatedWithRepository(t *testing.T, opts ...co
 
 func manifestPutSchema2ByDigestLayersNotAssociatedWithRepository(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	repoPath1 := "schema2/layersnotassociated1"
 	repoPath2 := "schema2/layersnotassociated2"
@@ -1444,7 +1444,7 @@ func manifestPutSchema2ByDigestLayersNotAssociatedWithRepository(t *testing.T, o
 
 func manifestPutSchema1ByDigest(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	repoPath := "schema1"
 
@@ -1496,7 +1496,7 @@ func manifestPutSchema1ByDigest(t *testing.T, opts ...configOpt) {
 
 func manifestHeadSchema2(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	tagName := "headtag"
 	repoPath := "schema2/head"
@@ -1559,7 +1559,7 @@ func manifestHeadSchema2(t *testing.T, opts ...configOpt) {
 
 func manifestHeadSchema2MissingManifest(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	tagName := "headtag"
 	repoPath := "schema2/missingmanifest"
@@ -1613,7 +1613,7 @@ func manifestHeadSchema2MissingManifest(t *testing.T, opts ...configOpt) {
 
 func manifestGetSchema2NoAcceptHeaders(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	tagName := "noaccepttag"
 	repoPath := "schema2/noaccept"
@@ -1678,7 +1678,7 @@ func manifestGetSchema2NoAcceptHeaders(t *testing.T, opts ...configOpt) {
 func manifestDeleteSchema2(t *testing.T, opts ...configOpt) {
 	opts = append(opts, withDelete)
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	tagName := "schema2deletetag"
 	repoPath := "schema2/delete"
@@ -1723,7 +1723,7 @@ func manifestDeleteSchema2(t *testing.T, opts ...configOpt) {
 func manifestDeleteSchema2AlreadyDeleted(t *testing.T, opts ...configOpt) {
 	opts = append(opts, withDelete)
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	tagName := "schema2deleteagain"
 	repoPath := "schema2/deleteagain"
@@ -1763,7 +1763,7 @@ func manifestDeleteSchema2AlreadyDeleted(t *testing.T, opts ...configOpt) {
 func manifestDeleteSchema2Reupload(t *testing.T, opts ...configOpt) {
 	opts = append(opts, withDelete)
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	tagName := "schema2deletereupload"
 	repoPath := "schema2/deletereupload"
@@ -1816,7 +1816,7 @@ func manifestDeleteSchema2Reupload(t *testing.T, opts ...configOpt) {
 func manifestDeleteSchema2MissingManifest(t *testing.T, opts ...configOpt) {
 	opts = append(opts, withDelete)
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	repoPath := "schema2/deletemissing"
 
@@ -1844,7 +1844,7 @@ func manifestDeleteSchema2MissingManifest(t *testing.T, opts ...configOpt) {
 func manifestDeleteSchema2ClearsTags(t *testing.T, opts ...configOpt) {
 	opts = append(opts, withDelete)
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	tagName := "schema2deletecleartag"
 	repoPath := "schema2/delete"
@@ -1910,7 +1910,7 @@ func manifestDeleteSchema2ClearsTags(t *testing.T, opts ...configOpt) {
 
 func manifestDeleteSchema2DeleteDisabled(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	tagName := "schema2deletedisabled"
 	repoPath := "schema2/delete"
@@ -1929,7 +1929,7 @@ func manifestDeleteSchema2DeleteDisabled(t *testing.T, opts ...configOpt) {
 func manifestDeleteTag(t *testing.T, opts ...configOpt) {
 	opts = append(opts, withDelete)
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	imageName, err := reference.WithName("foo/bar")
 	require.NoError(t, err)
@@ -1968,7 +1968,7 @@ func manifestDeleteTag(t *testing.T, opts ...configOpt) {
 func manifestDeleteTagUnknown(t *testing.T, opts ...configOpt) {
 	opts = append(opts, withDelete)
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	imageName, err := reference.WithName("foo/bar")
 	require.NoError(t, err)
@@ -1993,7 +1993,7 @@ func manifestDeleteTagUnknown(t *testing.T, opts ...configOpt) {
 func manifestDeleteTagUnknownRepository(t *testing.T, opts ...configOpt) {
 	opts = append(opts, withDelete)
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	imageName, err := reference.WithName("foo/bar")
 	require.NoError(t, err)
@@ -2015,7 +2015,7 @@ func manifestDeleteTagUnknownRepository(t *testing.T, opts ...configOpt) {
 
 func manifestDeleteTagDeleteDisabled(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	imageName, err := reference.WithName("foo/bar")
 	require.NoError(t, err)
@@ -2033,7 +2033,7 @@ func manifestDeleteTagDeleteDisabled(t *testing.T, opts ...configOpt) {
 
 func manifestPutOCIByTag(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	tagName := "ocihappypathtag"
 	repoPath := "oci/happypath"
@@ -2044,7 +2044,7 @@ func manifestPutOCIByTag(t *testing.T, opts ...configOpt) {
 
 func manifestPutOCIByDigest(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	repoPath := "oci/happypath"
 
@@ -2054,7 +2054,7 @@ func manifestPutOCIByDigest(t *testing.T, opts ...configOpt) {
 
 func manifestPutOCIWithSubject(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	repoPath := "oci/happypath"
 
@@ -2089,7 +2089,7 @@ func manifestPutOCIWithSubject(t *testing.T, opts ...configOpt) {
 
 func manifestPutOCIWithV2Subject(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	repoPath := "oci/happypath"
 
@@ -2124,7 +2124,7 @@ func manifestPutOCIWithV2Subject(t *testing.T, opts ...configOpt) {
 
 func manifestPutOCIWithNonMatchingSubject(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	repoPath := "oci/happypath"
 
@@ -2177,7 +2177,7 @@ func manifestPutOCIWithNonMatchingSubject(t *testing.T, opts ...configOpt) {
 
 func manifestPutOCIWithArtifactType(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	repoPath := "oci/happypath"
 	artifactType := "application/vnd.dev.cosign.artifact.sbom.v1+json"
@@ -2205,7 +2205,7 @@ func manifestPutOCIWithArtifactType(t *testing.T, opts ...configOpt) {
 
 func manifestGetOCINonMatchingEtag(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	tagName := "ocihappypathtag"
 	repoPath := "oci/happypath"
@@ -2297,7 +2297,7 @@ func manifestGetOCINonMatchingEtag(t *testing.T, opts ...configOpt) {
 
 func manifestGetOCIMatchingEtag(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	tagName := "ocihappypathtag"
 	repoPath := "oci/happypath"
@@ -2364,7 +2364,7 @@ func manifestGetOCIMatchingEtag(t *testing.T, opts ...configOpt) {
 
 func manifestPutOCIImageIndexByTag(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	tagName := "ociindexhappypathtag"
 	repoPath := "ociindex/happypath"
@@ -2375,7 +2375,7 @@ func manifestPutOCIImageIndexByTag(t *testing.T, opts ...configOpt) {
 
 func manifestPutOCIImageIndexByDigest(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	repoPath := "ociindex/happypath"
 
@@ -2424,7 +2424,7 @@ func validateManifestPutWithNonDistributableLayers(t *testing.T, env *testEnv, r
 func manifestPutOCIWithNonDistributableLayers(t *testing.T, opts ...configOpt) {
 	opts = append(opts, withoutManifestURLValidation)
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	repoPath := "non-distributable"
 	repoRef, err := reference.WithName(repoPath)
@@ -2462,7 +2462,7 @@ func manifestPutOCIWithNonDistributableLayers(t *testing.T, opts ...configOpt) {
 func manifestPutSchema2WithNonDistributableLayers(t *testing.T, opts ...configOpt) {
 	opts = append(opts, withoutManifestURLValidation)
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	repoPath := "non-distributable"
 	repoRef, err := reference.WithName(repoPath)
@@ -2499,7 +2499,7 @@ func manifestPutSchema2WithNonDistributableLayers(t *testing.T, opts ...configOp
 
 func manifestGetOCIIndexNonMatchingEtag(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	tagName := "ociindexhappypathtag"
 	repoPath := "ociindex/happypath"
@@ -2591,7 +2591,7 @@ func manifestGetOCIIndexNonMatchingEtag(t *testing.T, opts ...configOpt) {
 
 func manifestGetOCIIndexMatchingEtag(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	tagName := "ociindexhappypathtag"
 	repoPath := "ociindex/happypath"
@@ -2658,7 +2658,7 @@ func manifestGetOCIIndexMatchingEtag(t *testing.T, opts ...configOpt) {
 
 func manifestGetManifestListFallbackToSchema2(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	tagName := "manifestlistfallbacktag"
 	repoPath := "manifestlist/fallback"
@@ -2745,7 +2745,7 @@ func manifestGetManifestListFallbackToSchema2(t *testing.T, opts ...configOpt) {
 
 func blobGet(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	// create repository with a layer
 	args := makeBlobArgs(t)
@@ -2780,7 +2780,7 @@ func blobGet(t *testing.T, opts ...configOpt) {
 
 func blobGetRepositoryNotFound(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	args := makeBlobArgs(t)
 	ref, err := reference.WithDigest(args.imageName, args.layerDigest)
@@ -2799,7 +2799,7 @@ func blobGetRepositoryNotFound(t *testing.T, opts ...configOpt) {
 func blobGetBlobNotFound(t *testing.T, opts ...configOpt) {
 	opts = append(opts, withDelete)
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	// create repository with a layer
 	args := makeBlobArgs(t)
@@ -2822,7 +2822,7 @@ func blobGetBlobNotFound(t *testing.T, opts ...configOpt) {
 
 func blobHead(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	// create repository with a layer
 	args := makeBlobArgs(t)
@@ -2856,7 +2856,7 @@ func blobHead(t *testing.T, opts ...configOpt) {
 
 func blobHeadRepositoryNotFound(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	args := makeBlobArgs(t)
 	ref, err := reference.WithDigest(args.imageName, args.layerDigest)
@@ -2878,7 +2878,7 @@ func blobHeadRepositoryNotFound(t *testing.T, opts ...configOpt) {
 func blobHeadBlobNotFound(t *testing.T, opts ...configOpt) {
 	opts = append(opts, withDelete)
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	// create repository with a layer
 	args := makeBlobArgs(t)
@@ -2904,7 +2904,7 @@ func blobHeadBlobNotFound(t *testing.T, opts ...configOpt) {
 
 func blobDeleteDisabled(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	// create repository with a layer
 	args := makeBlobArgs(t)
@@ -2921,7 +2921,7 @@ func blobDeleteDisabled(t *testing.T, opts ...configOpt) {
 func blobDeleteImpl(t *testing.T, opts ...configOpt) string {
 	opts = append(opts, withDelete)
 	env := newTestEnv(t, opts...)
-	t.Cleanup(env.Shutdown)
+	env.Cleanup(t)
 
 	// create repository with a layer
 	args := makeBlobArgs(t)
@@ -2964,7 +2964,7 @@ func blobDeleteAlreadyDeleted(t *testing.T, opts ...configOpt) {
 func blobDeleteUnknownRepository(t *testing.T, opts ...configOpt) {
 	opts = append(opts, withDelete)
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	// Create url for a blob whose repository does not exist.
 	args := makeBlobArgs(t)
@@ -2987,7 +2987,7 @@ func blobDeleteUnknownRepository(t *testing.T, opts ...configOpt) {
 
 func tagsGet(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	imageName, err := reference.WithName("foo/bar")
 	require.NoError(t, err)
@@ -3134,7 +3134,7 @@ func tagsGet(t *testing.T, opts ...configOpt) {
 
 func tagsGetRepositoryNotFound(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	imageName, err := reference.WithName("foo/bar")
 	require.NoError(t, err)
@@ -3154,7 +3154,7 @@ func tagsGetRepositoryNotFound(t *testing.T, opts ...configOpt) {
 func tagsGetEmptyRepository(t *testing.T, opts ...configOpt) {
 	opts = append(opts, withDelete)
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	imageName, err := reference.WithName("foo/bar")
 	require.NoError(t, err)
@@ -3199,7 +3199,7 @@ func tagsGetEmptyRepository(t *testing.T, opts ...configOpt) {
 func manifestDeleteTagNotification(t *testing.T, opts ...configOpt) {
 	opts = append(opts, withDelete)
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	imageName, err := reference.WithName("foo/bar")
 	require.NoError(t, err, "building named object")
@@ -3234,7 +3234,7 @@ func manifestDeleteTagNotification(t *testing.T, opts ...configOpt) {
 func manifestDeleteTagNotificationWithAuth(t *testing.T, opts ...configOpt) {
 	opts = append(opts, withDelete)
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	imageName, err := reference.WithName("foo/bar")
 	require.NoError(t, err, "building named object")
@@ -3290,7 +3290,7 @@ func manifestDeleteTagNotificationWithAuth(t *testing.T, opts ...configOpt) {
 func manifestDeleteTagWithSameImageID(t *testing.T, opts ...configOpt) {
 	opts = append(opts, withDelete)
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	imageName, err := reference.WithName("foo/bar")
 	require.NoError(t, err, "building named object")
@@ -3342,7 +3342,7 @@ type catalogAPIResponse struct {
 // catalogGet tests the /v2/_catalog endpoint
 func catalogGet(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	sortedRepos := []string{
 		"2j2ar",
@@ -3482,7 +3482,7 @@ func catalogGet(t *testing.T, opts ...configOpt) {
 
 func catalogGetEmpty(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	catalogURL, err := env.builder.BuildCatalogURL()
 	require.NoError(t, err)
@@ -3504,7 +3504,7 @@ func catalogGetEmpty(t *testing.T, opts ...configOpt) {
 
 func catalogGetTooLarge(t *testing.T, opts ...configOpt) {
 	env := newTestEnv(t, opts...)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	catalogURL, err := env.builder.BuildCatalogURL(url.Values{"n": []string{"500000000000"}})
 	require.NoError(t, err)
