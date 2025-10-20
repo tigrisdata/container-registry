@@ -60,7 +60,7 @@ func withoutOnlineGCReviewDelay(config *configuration.Configuration) {
 // https://gitlab.com/gitlab-org/container-registry/-/blob/master/docs/spec/gitlab/online-garbage-collection.md#deleting-the-last-referencing-tag
 func TestTagsAPI_Delete_OnlineGC_BlocksAndResumesAfterGCReview(t *testing.T) {
 	env := newTestEnv(t, withDelete, withoutOnlineGCReviewDelay)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	if !env.config.Database.IsEnabled() {
 		t.Skip("skipping test because the metadata database is not enabled")
@@ -108,7 +108,7 @@ func TestTagsAPI_Delete_OnlineGC_BlocksAndResumesAfterGCReview(t *testing.T) {
 // https://gitlab.com/gitlab-org/container-registry/-/blob/master/docs/spec/gitlab/online-garbage-collection.md#deleting-the-last-referencing-tag
 func TestTagsAPI_Delete_OnlineGC_TimeoutOnProlongedReview(t *testing.T) {
 	env := newTestEnv(t, withDelete, withoutOnlineGCReviewDelay)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	if !env.config.Database.IsEnabled() {
 		t.Skip("skipping test because the metadata database is not enabled")
@@ -147,7 +147,7 @@ func TestTagsAPI_Delete_OnlineGC_TimeoutOnProlongedReview(t *testing.T) {
 // https://gitlab.com/gitlab-org/container-registry/-/blob/master/docs/spec/gitlab/online-garbage-collection.md#deleting-the-last-referencing-manifest-list
 func TestManifestsAPI_DeleteList_OnlineGC_BlocksAndResumesAfterGCReview(t *testing.T) {
 	env := newTestEnv(t, withDelete, withoutOnlineGCReviewDelay)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	if !env.config.Database.IsEnabled() {
 		t.Skip("skipping test because the metadata database is not enabled")
@@ -191,7 +191,7 @@ func TestManifestsAPI_DeleteList_OnlineGC_BlocksAndResumesAfterGCReview(t *testi
 // https://gitlab.com/gitlab-org/container-registry/-/blob/master/docs/spec/gitlab/online-garbage-collection.md#deleting-the-last-referencing-manifest-list
 func TestManifestsAPI_DeleteList_OnlineGC_TimeoutOnProlongedReview(t *testing.T) {
 	env := newTestEnv(t, withDelete, withoutOnlineGCReviewDelay)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	if !env.config.Database.IsEnabled() {
 		t.Skip("skipping test because the metadata database is not enabled")
@@ -225,7 +225,7 @@ func TestManifestsAPI_DeleteList_OnlineGC_TimeoutOnProlongedReview(t *testing.T)
 // https://gitlab.com/gitlab-org/container-registry/-/blob/master/docs/spec/gitlab/online-garbage-collection.md#creating-a-tag-for-an-untagged-manifest
 func TestManifestsAPI_Tag_OnlineGC_BlocksAndResumesAfterGCReview(t *testing.T) {
 	env := newTestEnv(t, withDelete, withoutOnlineGCReviewDelay)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	if !env.config.Database.IsEnabled() {
 		t.Skip("skipping test because the metadata database is not enabled")
@@ -275,7 +275,7 @@ func TestManifestsAPI_Tag_OnlineGC_BlocksAndResumesAfterGCReview(t *testing.T) {
 // https://gitlab.com/gitlab-org/container-registry/-/blob/master/docs/spec/gitlab/online-garbage-collection.md#creating-a-tag-for-an-untagged-manifest
 func TestManifestsAPI_Tag_OnlineGC_BlocksAndResumesAfterGCReview_DanglingManifest(t *testing.T) {
 	env := newTestEnv(t, withDelete, withoutOnlineGCReviewDelay)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	if !env.config.Database.IsEnabled() {
 		t.Skip("skipping test because the metadata database is not enabled")
@@ -326,7 +326,7 @@ func TestManifestsAPI_Tag_OnlineGC_BlocksAndResumesAfterGCReview_DanglingManifes
 // https://gitlab.com/gitlab-org/container-registry/-/blob/master/docs/spec/gitlab/online-garbage-collection.md#creating-a-tag-for-an-untagged-manifest
 func TestManifestsAPI_Tag_OnlineGC_TimeoutOnProlongedReview(t *testing.T) {
 	env := newTestEnv(t, withoutOnlineGCReviewDelay)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	if !env.config.Database.IsEnabled() {
 		t.Skip("skipping test because the metadata database is not enabled")
@@ -365,7 +365,7 @@ func TestManifestsAPI_Tag_OnlineGC_TimeoutOnProlongedReview(t *testing.T) {
 // https://gitlab.com/gitlab-org/container-registry/-/blob/master/docs/spec/gitlab/online-garbage-collection.md#creating-a-manifest-list-referencing-an-unreferenced-manifest
 func TestManifestsAPI_CreateList_OnlineGC_BlocksAndResumesAfterGCReview(t *testing.T) {
 	env := newTestEnv(t, withDelete, withoutOnlineGCReviewDelay)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	if !env.config.Database.IsEnabled() {
 		t.Skip("skipping test because the metadata database is not enabled")
@@ -445,7 +445,7 @@ func TestManifestsAPI_CreateList_OnlineGC_BlocksAndResumesAfterGCReview(t *testi
 // https://gitlab.com/gitlab-org/container-registry/-/blob/master/docs/spec/gitlab/online-garbage-collection.md#creating-a-manifest-list-referencing-an-unreferenced-manifest
 func TestManifestsAPI_CreateList_OnlineGC_TimeoutOnProlongedReview(t *testing.T) {
 	env := newTestEnv(t, withDelete, withoutOnlineGCReviewDelay)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	if !env.config.Database.IsEnabled() {
 		t.Skip("skipping test because the metadata database is not enabled")
@@ -517,7 +517,7 @@ func TestManifestsAPI_CreateList_OnlineGC_TimeoutOnProlongedReview(t *testing.T)
 // https://gitlab.com/gitlab-org/container-registry/-/blob/master/docs/spec/gitlab/online-garbage-collection.md#creating-a-manifest-list-referencing-an-unreferenced-manifest
 func TestManifestsAPI_CreateList_OnlineGC_BlocksAndResumesAfterGCReview_DanglingManifest(t *testing.T) {
 	env := newTestEnv(t, withDelete, withoutOnlineGCReviewDelay)
-	defer env.Shutdown()
+	env.Cleanup(t)
 
 	if !env.config.Database.IsEnabled() {
 		t.Skip("skipping test because the metadata database is not enabled")
