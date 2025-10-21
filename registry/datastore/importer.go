@@ -33,7 +33,7 @@ import (
 var (
 	errNegativeTestingDelay = errors.New("negative testing delay")
 	errManifestSkip         = errors.New("the manifest is invalid and its (pre)import should be skipped")
-	errTagsTableNotEmpty    = errors.New("tags table is not empty")
+	errTagsTableNotEmpty    = errors.New("halting import to protect data: tags already present in database - this may be an imported registry! If you are retrying an import, you **must** manually truncate the tags table before retrying: see https://docs.gitlab.com/ee/administration/packages/container_registry_metadata_database.html#troubleshooting")
 	errDBLocked             = errors.New("database-in-use lockfile exists")
 	commonBarOptions        = []progressbar.Option{
 		progressbar.OptionSetElapsedTime(true),
@@ -1433,7 +1433,7 @@ func (imp *Importer) importAllRepositoriesImpl(ctx context.Context) (err error) 
 		return fmt.Errorf("chechking if tags table is empty: %w", err)
 	}
 	if !isTagsTableEmpty {
-		log.GetLogger(log.WithContext(ctx)).WithError(errTagsTableNotEmpty).Error("cannot import all repositories while the tags table has entries, you must truncate the table manually before retrying, see https://docs.gitlab.com/ee/administration/packages/container_registry_metadata_database.html#troubleshooting")
+		log.GetLogger(log.WithContext(ctx)).WithError(errTagsTableNotEmpty)
 		return errTagsTableNotEmpty
 	}
 
