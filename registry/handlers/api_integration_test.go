@@ -624,7 +624,7 @@ func TestManifestAPI_Get_Schema2NotInDatabase(t *testing.T) {
 	tagURL := buildManifestTagURL(t, env2, repoPath, tagName)
 	digestURL := buildManifestDigestURL(t, env2, repoPath, deserializedManifest)
 
-	tt := []struct {
+	testCases := []struct {
 		name        string
 		manifestURL string
 		etag        string
@@ -639,21 +639,21 @@ func TestManifestAPI_Get_Schema2NotInDatabase(t *testing.T) {
 		},
 	}
 
-	for _, test := range tt {
-		t.Run(test.name, func(t *testing.T) {
-			req, err := http.NewRequest(http.MethodGet, test.manifestURL, nil)
-			require.NoError(t, err)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(tt *testing.T) {
+			req, err := http.NewRequest(http.MethodGet, tc.manifestURL, nil)
+			require.NoError(tt, err)
 
 			req.Header.Set("Accept", schema2.MediaTypeManifest)
-			if test.etag != "" {
-				req.Header.Set("If-None-Match", test.etag)
+			if tc.etag != "" {
+				req.Header.Set("If-None-Match", tc.etag)
 			}
 
 			resp, err := http.DefaultClient.Do(req)
-			require.NoError(t, err)
+			require.NoError(tt, err)
 			defer resp.Body.Close()
 
-			require.Equal(t, http.StatusNotFound, resp.StatusCode)
+			require.Equal(tt, http.StatusNotFound, resp.StatusCode)
 		})
 	}
 }
@@ -707,7 +707,7 @@ func TestManifestAPI_Put_LayerMediaType(t *testing.T) {
 	unknownMediaType := "fake/mediatype"
 	genericBlobMediaType := "application/octet-stream"
 
-	tt := []struct {
+	testCases := []struct {
 		name                  string
 		unknownLayerMediaType bool
 		dynamicMediaTypesFF   bool
@@ -732,12 +732,12 @@ func TestManifestAPI_Put_LayerMediaType(t *testing.T) {
 		},
 	}
 
-	for _, test := range tt {
-		t.Run(test.name, func(t *testing.T) {
-			t.Setenv(feature.DynamicMediaTypes.EnvVariable, strconv.FormatBool(test.dynamicMediaTypesFF))
+	for _, tc := range testCases {
+		t.Run(tc.name, func(tt *testing.T) {
+			tt.Setenv(feature.DynamicMediaTypes.EnvVariable, strconv.FormatBool(tc.dynamicMediaTypesFF))
 
 			repoRef, err := reference.WithName(repoPath)
-			require.NoError(t, err)
+			require.NoError(tt, err)
 
 			manifest := &schema2.Manifest{
 				Versioned: manifest.Versioned{
@@ -748,24 +748,24 @@ func TestManifestAPI_Put_LayerMediaType(t *testing.T) {
 
 			// Create a manifest config and push up its content.
 			cfgPayload, cfgDesc := schema2Config()
-			uploadURLBase, _ := startPushLayer(t, env, repoRef)
-			pushLayer(t, env.builder, repoRef, cfgDesc.Digest, uploadURLBase, bytes.NewReader(cfgPayload))
+			uploadURLBase, _ := startPushLayer(tt, env, repoRef)
+			pushLayer(tt, env.builder, repoRef, cfgDesc.Digest, uploadURLBase, bytes.NewReader(cfgPayload))
 			manifest.Config = cfgDesc
 
 			manifest.Layers = make([]distribution.Descriptor, 1)
 
-			rs, dgst, size := createRandomSmallLayer(t)
+			rs, dgst, size := createRandomSmallLayer(tt)
 
 			// Save the layer content as pushLayer exhausts the io.ReadSeeker
 			layerBytes, err := io.ReadAll(rs)
-			require.NoError(t, err)
+			require.NoError(tt, err)
 
-			uploadURLBase, _ = startPushLayer(t, env, repoRef)
-			pushLayer(t, env.builder, repoRef, dgst, uploadURLBase, bytes.NewReader(layerBytes))
+			uploadURLBase, _ = startPushLayer(tt, env, repoRef)
+			pushLayer(tt, env.builder, repoRef, dgst, uploadURLBase, bytes.NewReader(layerBytes))
 
 			layerMT := schema2.MediaTypeLayer
 
-			if test.unknownLayerMediaType {
+			if tc.unknownLayerMediaType {
 				layerMT = unknownMediaType
 			}
 
@@ -776,16 +776,16 @@ func TestManifestAPI_Put_LayerMediaType(t *testing.T) {
 			}
 
 			deserializedManifest, err := schema2.FromStruct(*manifest)
-			require.NoError(t, err)
+			require.NoError(tt, err)
 
 			// Build URLs.
-			tagURL := buildManifestTagURL(t, env, repoPath, tagName)
+			tagURL := buildManifestTagURL(tt, env, repoPath, tagName)
 
 			resp, err := putManifest("putting manifest", tagURL, schema2.MediaTypeManifest, deserializedManifest.Manifest)
-			require.NoError(t, err)
+			require.NoError(tt, err)
 			defer resp.Body.Close()
 
-			require.Equal(t, http.StatusCreated, resp.StatusCode)
+			require.Equal(tt, http.StatusCreated, resp.StatusCode)
 
 			// Check layer media type
 			ctx := context.Background()
@@ -794,36 +794,36 @@ func TestManifestAPI_Put_LayerMediaType(t *testing.T) {
 			bStore := datastore.NewBlobStore(env.db.Primary())
 
 			r, err := rStore.FindByPath(ctx, repoPath)
-			require.NoError(t, err)
-			require.NotNil(t, r)
+			require.NoError(tt, err)
+			require.NotNil(tt, r)
 
 			dbMfst, err := rStore.FindManifestByTagName(ctx, r, tagName)
-			require.NoError(t, err)
-			require.NotNil(t, dbMfst)
+			require.NoError(tt, err)
+			require.NotNil(tt, dbMfst)
 
 			dbLayers, err := mStore.LayerBlobs(ctx, dbMfst)
-			require.NoError(t, err)
-			require.NotNil(t, dbLayers)
-			require.Len(t, dbLayers, 1)
+			require.NoError(tt, err)
+			require.NotNil(tt, dbLayers)
+			require.Len(tt, dbLayers, 1)
 
 			wantMT := layerMT
 
-			if test.unknownLayerMediaType && !feature.DynamicMediaTypes.Enabled() {
+			if tc.unknownLayerMediaType && !feature.DynamicMediaTypes.Enabled() {
 				wantMT = genericBlobMediaType
 			}
 
-			require.Equal(t, wantMT, dbLayers[0].MediaType)
+			require.Equal(tt, wantMT, dbLayers[0].MediaType)
 
 			// Ensure underlying blob media type is always generic.
 			rBlob, err := rStore.FindBlob(ctx, r, dgst)
-			require.NoError(t, err)
-			require.NotNil(t, rBlob)
-			require.Equal(t, genericBlobMediaType, rBlob.MediaType)
+			require.NoError(tt, err)
+			require.NotNil(tt, rBlob)
+			require.Equal(tt, genericBlobMediaType, rBlob.MediaType)
 
 			dbBlob, err := bStore.FindByDigest(ctx, dgst)
-			require.NoError(t, err)
-			require.NotNil(t, dbBlob)
-			require.Equal(t, genericBlobMediaType, dbBlob.MediaType)
+			require.NoError(tt, err)
+			require.NotNil(tt, dbBlob)
+			require.Equal(tt, genericBlobMediaType, dbBlob.MediaType)
 		})
 	}
 }
@@ -1134,7 +1134,7 @@ func TestManifestAPI_Get_Schema1(t *testing.T) {
 	digestURL, err := env.builder.BuildManifestURL(digestRef)
 	require.NoError(t, err)
 
-	tt := []struct {
+	testCases := []struct {
 		name        string
 		manifestURL string
 		etag        string
@@ -1149,17 +1149,17 @@ func TestManifestAPI_Get_Schema1(t *testing.T) {
 		},
 	}
 
-	for _, test := range tt {
-		t.Run(test.name, func(t *testing.T) {
-			req, err := http.NewRequest(http.MethodGet, test.manifestURL, nil)
-			require.NoError(t, err)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(tt *testing.T) {
+			req, err := http.NewRequest(http.MethodGet, tc.manifestURL, nil)
+			require.NoError(tt, err)
 
 			resp, err := http.DefaultClient.Do(req)
-			require.NoError(t, err)
+			require.NoError(tt, err)
 			defer resp.Body.Close()
 
-			require.Equal(t, http.StatusBadRequest, resp.StatusCode)
-			checkBodyHasErrorCodes(t, "invalid manifest", resp, v2.ErrorCodeManifestInvalid)
+			require.Equal(tt, http.StatusBadRequest, resp.StatusCode)
+			checkBodyHasErrorCodes(tt, "invalid manifest", resp, v2.ErrorCodeManifestInvalid)
 		})
 	}
 }
@@ -1343,7 +1343,7 @@ func testManifestAPI_Put_ManifestWithAllPossibleMediaTypeAndContentTypeCombinati
 
 	unknownMediaType := "application/vnd.foo.manifest.v1+json"
 
-	tt := []struct {
+	testCases := []struct {
 		Name                string
 		PayloadMediaType    string
 		ContentTypeHeader   string
@@ -1491,15 +1491,15 @@ func testManifestAPI_Put_ManifestWithAllPossibleMediaTypeAndContentTypeCombinati
 	u, _ = startPushLayer(t, env, repoRef)
 	pushLayer(t, env.builder, repoRef, layerDgst, u, rs)
 
-	for _, test := range tt {
-		t.Run(test.Name, func(t *testing.T) {
-			t.Setenv(feature.DynamicMediaTypes.EnvVariable, strconv.FormatBool(test.dynamicMediaTypesFF))
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(tt *testing.T) {
+			tt.Setenv(feature.DynamicMediaTypes.EnvVariable, strconv.FormatBool(tc.dynamicMediaTypesFF))
 
 			// build and push manifest
 			m := &schema2.Manifest{
 				Versioned: manifest.Versioned{
 					SchemaVersion: 2,
-					MediaType:     test.PayloadMediaType,
+					MediaType:     tc.PayloadMediaType,
 				},
 				Config: distribution.Descriptor{
 					MediaType: schema2.MediaTypeImageConfig,
@@ -1514,21 +1514,21 @@ func testManifestAPI_Put_ManifestWithAllPossibleMediaTypeAndContentTypeCombinati
 				},
 			}
 			dm, err := schema2.FromStruct(*m)
-			require.NoError(t, err)
+			require.NoError(tt, err)
 
-			u = buildManifestDigestURL(t, env, repoRef.Name(), dm)
-			resp, err := putManifest("", u, test.ContentTypeHeader, dm.Manifest)
-			require.NoError(t, err)
+			u = buildManifestDigestURL(tt, env, repoRef.Name(), dm)
+			resp, err := putManifest("", u, tc.ContentTypeHeader, dm.Manifest)
+			require.NoError(tt, err)
 			defer resp.Body.Close()
 
-			require.Equal(t, test.ExpectedStatus, resp.StatusCode)
+			require.Equal(tt, tc.ExpectedStatus, resp.StatusCode)
 
-			if test.ExpectedErrCode != nil {
-				errs, _, _ := checkBodyHasErrorCodes(t, "", resp, v2.ErrorCodeManifestInvalid)
-				require.Len(t, errs, 1)
+			if tc.ExpectedErrCode != nil {
+				errs, _, _ := checkBodyHasErrorCodes(tt, "", resp, v2.ErrorCodeManifestInvalid)
+				require.Len(tt, errs, 1)
 				errc, ok := errs[0].(errcode.Error)
-				require.True(t, ok)
-				require.Equal(t, test.ExpectedErrDetail, errc.Detail)
+				require.True(tt, ok)
+				require.Equal(tt, tc.ExpectedErrDetail, errc.Detail)
 			}
 		})
 	}
@@ -1556,7 +1556,7 @@ func testManifestAPI_Put_ManifestListWithAllPossibleMediaTypeAndContentTypeCombi
 
 	unknownMediaType := "application/vnd.foo.manifest.list.v1+json"
 
-	tt := []struct {
+	testCases := []struct {
 		Name                string
 		PayloadMediaType    string
 		ContentTypeHeader   string
@@ -1699,15 +1699,15 @@ func testManifestAPI_Put_ManifestListWithAllPossibleMediaTypeAndContentTypeCombi
 	require.NoError(t, err)
 	dgst := digest.FromBytes(payload)
 
-	for _, test := range tt {
-		t.Run(test.Name, func(t *testing.T) {
-			t.Setenv(feature.DynamicMediaTypes.EnvVariable, strconv.FormatBool(test.dynamicMediaTypesFF))
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(tt *testing.T) {
+			tt.Setenv(feature.DynamicMediaTypes.EnvVariable, strconv.FormatBool(tc.dynamicMediaTypesFF))
 
 			// build and push manifest list
 			ml := &manifestlist.ManifestList{
 				Versioned: manifest.Versioned{
 					SchemaVersion: 2,
-					MediaType:     test.PayloadMediaType,
+					MediaType:     tc.PayloadMediaType,
 				},
 				Manifests: []manifestlist.ManifestDescriptor{
 					{
@@ -1724,21 +1724,21 @@ func testManifestAPI_Put_ManifestListWithAllPossibleMediaTypeAndContentTypeCombi
 			}
 
 			dml, err := manifestlist.FromDescriptors(ml.Manifests)
-			require.NoError(t, err)
+			require.NoError(tt, err)
 
-			manifestDigestURL := buildManifestDigestURL(t, env, repoRef.Name(), dml)
-			resp, err := putManifest("", manifestDigestURL, test.ContentTypeHeader, dml)
-			require.NoError(t, err)
+			manifestDigestURL := buildManifestDigestURL(tt, env, repoRef.Name(), dml)
+			resp, err := putManifest("", manifestDigestURL, tc.ContentTypeHeader, dml)
+			require.NoError(tt, err)
 			defer resp.Body.Close()
 
-			require.Equal(t, test.ExpectedStatus, resp.StatusCode)
+			require.Equal(tt, tc.ExpectedStatus, resp.StatusCode)
 
-			if test.ExpectedErrCode != nil {
-				errs, _, _ := checkBodyHasErrorCodes(t, "", resp, v2.ErrorCodeManifestInvalid)
-				require.Len(t, errs, 1)
+			if tc.ExpectedErrCode != nil {
+				errs, _, _ := checkBodyHasErrorCodes(tt, "", resp, v2.ErrorCodeManifestInvalid)
+				require.Len(tt, errs, 1)
 				errc, ok := errs[0].(errcode.Error)
-				require.True(t, ok)
-				require.Equal(t, test.ExpectedErrDetail, errc.Detail)
+				require.True(tt, ok)
+				require.Equal(tt, tc.ExpectedErrDetail, errc.Detail)
 			}
 		})
 	}
@@ -2384,7 +2384,6 @@ func TestExistingRenameLease_Checks_Skipped(t *testing.T) {
 	// Apply base registry config/setup (without authorization) to allow seeding repository with test data
 	envMain := newTestEnv(t)
 	envMain.requireDB(t)
-	envMain.Cleanup(t)
 
 	// Seed a repository "foo/bar"
 	repoName := "foo/bar"
@@ -2395,7 +2394,7 @@ func TestExistingRenameLease_Checks_Skipped(t *testing.T) {
 	// Generate an Auth token with full access to the base repository "foo/bar"
 	testToken := tokenProvider.tokenWithActions(fullAccessTokenWithProjectMeta(repoName, repoName))
 
-	tt := []struct {
+	testCases := []struct {
 		name                 string
 		ongoingRenameCheckFF bool
 		redisEnabled         bool
@@ -2435,46 +2434,45 @@ func TestExistingRenameLease_Checks_Skipped(t *testing.T) {
 		},
 	}
 
-	for _, test := range tt {
-		t.Run(test.name, func(t *testing.T) {
-			t.Setenv(feature.OngoingRenameCheck.EnvVariable, strconv.FormatBool(test.ongoingRenameCheckFF))
+	for _, tc := range testCases {
+		t.Run(tc.name, func(tt *testing.T) {
+			tt.Setenv(feature.OngoingRenameCheck.EnvVariable, strconv.FormatBool(tc.ongoingRenameCheckFF))
 
 			var opts []configOpt
 			var redisController internaltestutil.RedisCacheController
 
-			if test.redisEnabled {
+			if tc.redisEnabled {
 				// Attatch a redis cache to registry configuration
-				redisController = internaltestutil.NewRedisCacheController(t, 0)
+				redisController = internaltestutil.NewRedisCacheController(tt, 0)
 				opts = append(opts, withRedisCache(redisController.Addr()))
 
 				// Enact a project lease on "foo/bar" - indicating the project space is undergoing a rename
 				// Note: Project lease last for at most 5 seconds in the codebase. However, to test that a project lease is in effect we exaggerate the TTL of a lease to 1 hour.
 				// This is to make sure we have enough time to assert the behavior of an existing project lease while avoiding race-conditions/flakiness in the test.
-				acquireProjectLease(t, redisController.Cache, repoName, 1*time.Hour)
+				acquireProjectLease(tt, redisController.Cache, repoName, 1*time.Hour)
 			}
 
-			if !test.dbEnabled {
+			if !tc.dbEnabled {
 				opts = append(opts, withDBDisabled)
 			}
 
 			// Use token based authorization for all proceeding requests.
 			// Token based authorization is required for checking for an ongoing rename during push & delete operations.
-			envSubtest := newTestEnv(t, append(opts, withTokenAuth(tokenProvider.certPath(), defaultIssuerProps()))...)
+			envSubtest := newTestEnv(tt, append(opts, withTokenAuth(tokenProvider.certPath(), defaultIssuerProps()))...)
 
 			// Shutdown redis cache before making a request
-			if test.redisEnabled && test.redisUnReachable {
+			if tc.redisEnabled && tc.redisUnReachable {
 				redisController.Close()
-				t.Cleanup(func() {
-					err := envSubtest.Shutdown()
-					require.Error(t, err)
-					require.Regexp(t, `redis flush: flushing redis cache: dial tcp 127\.0\.0\.1:\d+: connect: connection refused`, err.Error())
-				})
-			} else {
-				envSubtest.Cleanup(t)
 			}
+			t.Cleanup(func() {
+				err := envSubtest.Shutdown()
+				if err != nil {
+					require.Regexp(t, `redis flush: flushing redis cache: dial tcp 127\.0\.0\.1:\d+: connect: connection refused`, err.Error())
+				}
+			})
 			// Try pushing to the repository allegedly undergoing a rename and ensure it is successful.
 			// This signifies that a lease check on the enacted lease is never actioned upon.
-			seedRandomSchema2Manifest(t, envSubtest, repoName, putByTag("latest"), withAuthToken(testToken))
+			seedRandomSchema2Manifest(tt, envSubtest, repoName, putByTag("latest"), withAuthToken(testToken))
 		})
 	}
 }
@@ -2499,7 +2497,7 @@ func TestManifestAPI_Delete_ProtectedTags(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test cases
-	tests := []struct {
+	testCases := []struct {
 		name           string
 		customTag      string
 		denyPatterns   []string
@@ -2551,8 +2549,8 @@ func TestManifestAPI_Delete_ProtectedTags(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(tt *testing.T) {
 			// Create auth token actions with deny access patterns for delete action
 			tokenActions := []*token.ResourceActions{
 				{
@@ -2561,7 +2559,7 @@ func TestManifestAPI_Delete_ProtectedTags(t *testing.T) {
 					Actions: []string{"delete"},
 					Meta: &token.Meta{
 						TagDenyAccessPatterns: &token.TagDenyAccessPatterns{
-							Delete: tt.denyPatterns,
+							Delete: tc.denyPatterns,
 						},
 					},
 				},
@@ -2569,21 +2567,21 @@ func TestManifestAPI_Delete_ProtectedTags(t *testing.T) {
 
 			// Send delete request and validate response based on expected status and error codes
 			req, err := http.NewRequest(http.MethodDelete, manifestURL, nil)
-			require.NoError(t, err)
+			require.NoError(tt, err)
 			req = tokenProvider.requestWithAuthActions(req, tokenActions)
 
 			resp, err := http.DefaultClient.Do(req)
-			require.NoError(t, err)
+			require.NoError(tt, err)
 			defer resp.Body.Close()
 
-			checkResponse(t, "", resp, tt.expectedStatus)
+			checkResponse(tt, "", resp, tc.expectedStatus)
 
-			if tt.expectedError != nil {
-				checkBodyHasErrorCodes(t, "", resp, *tt.expectedError)
+			if tc.expectedError != nil {
+				checkBodyHasErrorCodes(tt, "", resp, *tc.expectedError)
 			} else {
 				body, err := io.ReadAll(resp.Body)
-				require.NoError(t, err)
-				require.Empty(t, body)
+				require.NoError(tt, err)
+				require.Empty(tt, body)
 			}
 		})
 	}
@@ -2678,7 +2676,7 @@ func TestManifestAPI_Delete_ProtectedTags_ByDigest(t *testing.T) {
 	manifestDigestURL := buildManifestDigestURL(t, env, imageName.Name(), deserializedManifest)
 
 	// Test cases
-	tests := []struct {
+	testCases := []struct {
 		name           string
 		denyPatterns   []string
 		expectedStatus int
@@ -2696,8 +2694,8 @@ func TestManifestAPI_Delete_ProtectedTags_ByDigest(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(tt *testing.T) {
 			// Create auth token actions with deny access patterns for delete action
 			tokenActions := []*token.ResourceActions{
 				{
@@ -2706,7 +2704,7 @@ func TestManifestAPI_Delete_ProtectedTags_ByDigest(t *testing.T) {
 					Actions: []string{"delete"},
 					Meta: &token.Meta{
 						TagDenyAccessPatterns: &token.TagDenyAccessPatterns{
-							Delete: tt.denyPatterns,
+							Delete: tc.denyPatterns,
 						},
 					},
 				},
@@ -2714,21 +2712,21 @@ func TestManifestAPI_Delete_ProtectedTags_ByDigest(t *testing.T) {
 
 			// Send delete request and validate response based on expected status and error codes
 			req, err := http.NewRequest(http.MethodDelete, manifestDigestURL, nil)
-			require.NoError(t, err)
+			require.NoError(tt, err)
 			req = tokenProvider.requestWithAuthActions(req, tokenActions)
 
 			resp, err := http.DefaultClient.Do(req)
-			require.NoError(t, err)
+			require.NoError(tt, err)
 			defer resp.Body.Close()
 
-			checkResponse(t, "", resp, tt.expectedStatus)
+			checkResponse(tt, "", resp, tc.expectedStatus)
 
-			if tt.expectedError != nil {
-				checkBodyHasErrorCodes(t, "", resp, *tt.expectedError)
+			if tc.expectedError != nil {
+				checkBodyHasErrorCodes(tt, "", resp, *tc.expectedError)
 			} else {
 				body, err := io.ReadAll(resp.Body)
-				require.NoError(t, err)
-				require.Empty(t, body)
+				require.NoError(tt, err)
+				require.Empty(tt, body)
 			}
 		})
 	}
@@ -2747,7 +2745,7 @@ func TestManifestAPI_Put_ProtectedTags(t *testing.T) {
 	env = newTestEnv(t, withTokenAuth(tokenProvider.certPath(), defaultIssuerProps()))
 
 	// Test cases
-	tests := []struct {
+	testCases := []struct {
 		name           string
 		tag            string
 		existingTag    bool
@@ -2808,13 +2806,13 @@ func TestManifestAPI_Put_ProtectedTags(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(tt *testing.T) {
 			// Pre-create the repository and tag if it's an update scenario
-			if tt.existingTag {
-				noAuthEnv := newTestEnv(t)
-				t.Cleanup(func() { require.NoError(t, noAuthEnv.Shutdown()) })
-				seedRandomSchema2Manifest(t, noAuthEnv, imageName.Name(), putByTag(tt.tag))
+			if tc.existingTag {
+				noAuthEnv := newTestEnv(tt)
+				noAuthEnv.Cleanup(tt)
+				seedRandomSchema2Manifest(tt, noAuthEnv, imageName.Name(), putByTag(tc.tag))
 			}
 
 			// Create auth token with deny access patterns for push action
@@ -2825,33 +2823,33 @@ func TestManifestAPI_Put_ProtectedTags(t *testing.T) {
 					Actions: []string{"pull", "push"},
 					Meta: &token.Meta{
 						TagDenyAccessPatterns: &token.TagDenyAccessPatterns{
-							Push: tt.denyPatterns,
+							Push: tc.denyPatterns,
 						},
 					},
 				},
 			}
 
 			// Seed random layers and generate an image manifest
-			deserializedManifest := seedRandomSchema2Manifest(t, env, imageName.Name(), withAuthToken(tokenProvider.tokenWithActions(tokenActions)))
+			deserializedManifest := seedRandomSchema2Manifest(tt, env, imageName.Name(), withAuthToken(tokenProvider.tokenWithActions(tokenActions)))
 
 			// Send manifest push request and ensure it responds as expected
-			manifestURL := buildManifestTagURL(t, env, imageName.Name(), tt.tag)
+			manifestURL := buildManifestTagURL(tt, env, imageName.Name(), tc.tag)
 			req, err := putManifestRequest(manifestURL, schema2.MediaTypeManifest, deserializedManifest.Manifest)
-			require.NoError(t, err)
+			require.NoError(tt, err)
 			req = tokenProvider.requestWithAuthActions(req, tokenActions)
 
 			resp, err := http.DefaultClient.Do(req)
-			require.NoError(t, err)
+			require.NoError(tt, err)
 			defer resp.Body.Close()
 
-			checkResponse(t, "", resp, tt.expectedStatus)
+			checkResponse(tt, "", resp, tc.expectedStatus)
 
-			if tt.expectedError != nil {
-				checkBodyHasErrorCodes(t, "", resp, *tt.expectedError)
+			if tc.expectedError != nil {
+				checkBodyHasErrorCodes(tt, "", resp, *tc.expectedError)
 			} else {
 				body, err := io.ReadAll(resp.Body)
-				require.NoError(t, err)
-				require.Empty(t, body)
+				require.NoError(tt, err)
+				require.Empty(tt, body)
 			}
 		})
 	}
@@ -2880,7 +2878,7 @@ func TestManifestAPI_Delete_ImmutableTags(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test cases
-	tests := []struct {
+	testCases := []struct {
 		name              string
 		customTag         string
 		immutablePatterns []string
@@ -2932,8 +2930,8 @@ func TestManifestAPI_Delete_ImmutableTags(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(tt *testing.T) {
 			// Create auth token actions with immutable patterns for delete action
 			tokenActions := []*token.ResourceActions{
 				{
@@ -2941,28 +2939,28 @@ func TestManifestAPI_Delete_ImmutableTags(t *testing.T) {
 					Name:    imageName.Name(),
 					Actions: []string{"delete"},
 					Meta: &token.Meta{
-						TagImmutablePatterns: tt.immutablePatterns,
+						TagImmutablePatterns: tc.immutablePatterns,
 					},
 				},
 			}
 
 			// Send delete request and validate response based on expected status and error codes
 			req, err := http.NewRequest(http.MethodDelete, manifestURL, nil)
-			require.NoError(t, err)
+			require.NoError(tt, err)
 			req = tokenProvider.requestWithAuthActions(req, tokenActions)
 
 			resp, err := http.DefaultClient.Do(req)
-			require.NoError(t, err)
+			require.NoError(tt, err)
 			defer resp.Body.Close()
 
-			checkResponse(t, "", resp, tt.expectedStatus)
+			checkResponse(tt, "", resp, tc.expectedStatus)
 
-			if tt.expectedError != nil {
-				checkBodyHasErrorCodes(t, "", resp, *tt.expectedError)
+			if tc.expectedError != nil {
+				checkBodyHasErrorCodes(tt, "", resp, *tc.expectedError)
 			} else {
 				body, err := io.ReadAll(resp.Body)
-				require.NoError(t, err)
-				require.Empty(t, body)
+				require.NoError(tt, err)
+				require.Empty(tt, body)
 			}
 		})
 	}
@@ -3053,7 +3051,7 @@ func TestManifestAPI_Delete_ImmutableTags_ByDigest(t *testing.T) {
 	manifestDigestURL := buildManifestDigestURL(t, env, imageName.Name(), deserializedManifest)
 
 	// Test cases
-	tests := []struct {
+	testCases := []struct {
 		name              string
 		immutablePatterns []string
 		expectedStatus    int
@@ -3071,8 +3069,8 @@ func TestManifestAPI_Delete_ImmutableTags_ByDigest(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(tt *testing.T) {
 			// Create auth token actions with immutable patterns for delete action
 			tokenActions := []*token.ResourceActions{
 				{
@@ -3080,28 +3078,28 @@ func TestManifestAPI_Delete_ImmutableTags_ByDigest(t *testing.T) {
 					Name:    imageName.Name(),
 					Actions: []string{"delete"},
 					Meta: &token.Meta{
-						TagImmutablePatterns: tt.immutablePatterns,
+						TagImmutablePatterns: tc.immutablePatterns,
 					},
 				},
 			}
 
 			// Send delete request and validate response based on expected status and error codes
 			req, err := http.NewRequest(http.MethodDelete, manifestDigestURL, nil)
-			require.NoError(t, err)
+			require.NoError(tt, err)
 			req = tokenProvider.requestWithAuthActions(req, tokenActions)
 
 			resp, err := http.DefaultClient.Do(req)
-			require.NoError(t, err)
+			require.NoError(tt, err)
 			defer resp.Body.Close()
 
-			checkResponse(t, "", resp, tt.expectedStatus)
+			checkResponse(tt, "", resp, tc.expectedStatus)
 
-			if tt.expectedError != nil {
-				checkBodyHasErrorCodes(t, "", resp, *tt.expectedError)
+			if tc.expectedError != nil {
+				checkBodyHasErrorCodes(tt, "", resp, *tc.expectedError)
 			} else {
 				body, err := io.ReadAll(resp.Body)
-				require.NoError(t, err)
-				require.Empty(t, body)
+				require.NoError(tt, err)
+				require.Empty(tt, body)
 			}
 		})
 	}
@@ -3124,7 +3122,7 @@ func TestManifestAPI_Put_ImmutableTags(t *testing.T) {
 	env = newTestEnv(t, withTokenAuth(tokenProvider.certPath(), defaultIssuerProps()))
 
 	// Test cases
-	tests := []struct {
+	testCases := []struct {
 		name              string
 		tag               string
 		existingTag       bool
@@ -3187,13 +3185,13 @@ func TestManifestAPI_Put_ImmutableTags(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(tt *testing.T) {
 			// Pre-create the repository and tag if it's an update scenario
-			if tt.existingTag {
-				noAuthEnv := newTestEnv(t)
-				t.Cleanup(func() { require.NoError(t, noAuthEnv.Shutdown()) })
-				seedRandomSchema2Manifest(t, noAuthEnv, imageName.Name(), putByTag(tt.tag))
+			if tc.existingTag {
+				noAuthEnv := newTestEnv(tt)
+				noAuthEnv.Cleanup(tt)
+				seedRandomSchema2Manifest(t, noAuthEnv, imageName.Name(), putByTag(tc.tag))
 			}
 
 			// Create auth token with immutable patterns for push action
@@ -3203,32 +3201,32 @@ func TestManifestAPI_Put_ImmutableTags(t *testing.T) {
 					Name:    imageName.Name(),
 					Actions: []string{"pull", "push"},
 					Meta: &token.Meta{
-						TagImmutablePatterns: tt.immutablePatterns,
+						TagImmutablePatterns: tc.immutablePatterns,
 					},
 				},
 			}
 
 			// Seed random layers and generate an image manifest
-			deserializedManifest := seedRandomSchema2Manifest(t, env, imageName.Name(), withAuthToken(tokenProvider.tokenWithActions(tokenActions)))
+			deserializedManifest := seedRandomSchema2Manifest(tt, env, imageName.Name(), withAuthToken(tokenProvider.tokenWithActions(tokenActions)))
 
 			// Send manifest push request and ensure it responds as expected
-			manifestURL := buildManifestTagURL(t, env, imageName.Name(), tt.tag)
+			manifestURL := buildManifestTagURL(tt, env, imageName.Name(), tc.tag)
 			req, err := putManifestRequest(manifestURL, schema2.MediaTypeManifest, deserializedManifest.Manifest)
-			require.NoError(t, err)
+			require.NoError(tt, err)
 			req = tokenProvider.requestWithAuthActions(req, tokenActions)
 
 			resp, err := http.DefaultClient.Do(req)
-			require.NoError(t, err)
+			require.NoError(tt, err)
 			defer resp.Body.Close()
 
-			checkResponse(t, "", resp, tt.expectedStatus)
+			checkResponse(tt, "", resp, tc.expectedStatus)
 
-			if tt.expectedError != nil {
-				checkBodyHasErrorCodes(t, "", resp, *tt.expectedError)
+			if tc.expectedError != nil {
+				checkBodyHasErrorCodes(tt, "", resp, *tc.expectedError)
 			} else {
 				body, err := io.ReadAll(resp.Body)
-				require.NoError(t, err)
-				require.Empty(t, body)
+				require.NoError(tt, err)
+				require.Empty(tt, body)
 			}
 		})
 	}

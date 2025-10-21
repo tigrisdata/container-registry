@@ -39,7 +39,7 @@ func TestFindJob_Errors(t *testing.T) {
 	// Declare the context for the tests
 	ctx := context.TODO()
 
-	tt := []struct {
+	testCases := []struct {
 		name          string
 		setupMocks    func(ctrl *gomock.Controller) datastore.BackgroundMigrationStore
 		worker        *Worker
@@ -284,14 +284,14 @@ func TestFindJob_Errors(t *testing.T) {
 		},
 	}
 
-	for _, test := range tt {
-		t.Run(test.name, func(t *testing.T) {
-			test := test
-			t.Parallel()
-			bbmStore := test.setupMocks(gomock.NewController(t))
+	for _, tc := range testCases {
+		t.Run(tc.name, func(tt *testing.T) {
+			test := tc
+			tt.Parallel()
+			bbmStore := test.setupMocks(gomock.NewController(tt))
 			job, err := test.worker.FindJob(ctx, bbmStore)
-			require.ErrorIs(t, err, test.expectedError)
-			require.Nil(t, job)
+			require.ErrorIs(tt, err, test.expectedError)
+			require.Nil(tt, job)
 		})
 	}
 }
@@ -305,7 +305,7 @@ func TestFindJob(t *testing.T) {
 		JobName: workFunctionName,
 	}
 
-	tt := []struct {
+	testCases := []struct {
 		name        string
 		setupMocks  func(ctrl *gomock.Controller) datastore.BackgroundMigrationStore
 		worker      *Worker
@@ -464,13 +464,13 @@ func TestFindJob(t *testing.T) {
 		},
 	}
 
-	for _, test := range tt {
-		t.Run(test.name, func(t *testing.T) {
-			test := test
-			bbmStore := test.setupMocks(gomock.NewController(t))
+	for _, tc := range testCases {
+		t.Run(tc.name, func(tt *testing.T) {
+			test := tc
+			bbmStore := test.setupMocks(gomock.NewController(tt))
 			job, err := test.worker.FindJob(ctx, bbmStore)
-			require.NoError(t, err)
-			require.Equal(t, test.expectedJob, job)
+			require.NoError(tt, err)
+			require.Equal(tt, test.expectedJob, job)
 		})
 	}
 }
@@ -610,7 +610,7 @@ func TestFindJob_NullBatchingStrategy_ErrorFromHasNullValues(t *testing.T) {
 // TestExecuteJob_Errors tests all the error paths on the `ExecuteJob` method.
 func TestExecuteJob_Errors(t *testing.T) {
 	ctx := context.TODO()
-	tt := []struct {
+	testCases := []struct {
 		name          string
 		setupMocks    func(ctrl *gomock.Controller) datastore.BackgroundMigrationStore
 		worker        *Worker
@@ -732,13 +732,13 @@ func TestExecuteJob_Errors(t *testing.T) {
 		},
 	}
 
-	for _, test := range tt {
-		t.Run(test.name, func(t *testing.T) {
-			test := test
-			t.Parallel()
-			bbmStore := test.setupMocks(gomock.NewController(t))
+	for _, tc := range testCases {
+		t.Run(tc.name, func(tt *testing.T) {
+			test := tc
+			tt.Parallel()
+			bbmStore := test.setupMocks(gomock.NewController(tt))
 			err := test.worker.ExecuteJob(ctx, bbmStore, job)
-			require.ErrorIs(t, err, test.expectedError)
+			require.ErrorIs(tt, err, test.expectedError)
 		})
 	}
 }
@@ -854,7 +854,7 @@ func TestRegisterWork_Errors(t *testing.T) {
 // TestRegisterWork tests all the happy paths on the `RegisterWork` function.
 func TestRegisterWork(t *testing.T) {
 	wh := bbm_mocks.NewMockHandler(gomock.NewController(t))
-	tt := []struct {
+	testCases := []struct {
 		name           string
 		opts           []WorkerOption
 		expectedWorker func() *Worker
@@ -968,20 +968,20 @@ func TestRegisterWork(t *testing.T) {
 		},
 	}
 
-	for _, test := range tt {
-		t.Run(test.name, func(t *testing.T) {
-			test := test
-			t.Parallel()
+	for _, tc := range testCases {
+		t.Run(tc.name, func(tt *testing.T) {
+			test := tc
+			tt.Parallel()
 			worker, err := RegisterWork(nil, test.opts...)
-			require.NoError(t, err)
-			require.Equal(t, test.expectedWorker(), worker)
+			require.NoError(tt, err)
+			require.Equal(tt, test.expectedWorker(), worker)
 		})
 	}
 }
 
 // TestWorker_Run tests the run method of worker.
 func TestWorker_Run(t *testing.T) {
-	tests := []struct {
+	testCases := []struct {
 		name       string
 		setupMocks func(ctrl *gomock.Controller) *Worker
 
@@ -1194,22 +1194,22 @@ func TestWorker_Run(t *testing.T) {
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			test := test
-			t.Parallel()
-			worker := test.setupMocks(gomock.NewController(t))
+	for _, tc := range testCases {
+		t.Run(tc.name, func(tt *testing.T) {
+			test := tc
+			tt.Parallel()
+			worker := test.setupMocks(gomock.NewController(tt))
 			// Execute the run method and assert the necessary methods/functions are called
 			actualRunResult, actualErr := worker.run(context.TODO())
 
-			require.Equal(t, test.expectedErr, actualErr)
-			require.Equal(t, test.expectedRunResult, actualRunResult)
+			require.Equal(tt, test.expectedErr, actualErr)
+			require.Equal(tt, test.expectedRunResult, actualRunResult)
 		})
 	}
 }
 
 func TestWorker_shouldResetBackOff(t *testing.T) {
-	tests := []struct {
+	testCases := []struct {
 		name     string
 		result   runResult
 		err      error
@@ -1277,13 +1277,13 @@ func TestWorker_shouldResetBackOff(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(tt *testing.T) {
 			jw := &Worker{
 				logger: log.GetLogger(),
 			}
-			actual := jw.shouldResetBackOff(tt.result, tt.err)
-			require.Equal(t, tt.expected, actual)
+			actual := jw.shouldResetBackOff(tc.result, tc.err)
+			require.Equal(tt, tc.expected, actual)
 		})
 	}
 }

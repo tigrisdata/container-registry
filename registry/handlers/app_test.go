@@ -776,7 +776,7 @@ func Test_startDBPoolRefresh_StartupJitter(t *testing.T) {
 func TestStatusRecordingResponseWriter(t *testing.T) {
 	bodyContent := "default response"
 
-	tests := []struct {
+	testCases := []struct {
 		name         string
 		writeHeader  bool
 		customStatus int
@@ -798,20 +798,20 @@ func TestStatusRecordingResponseWriter(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(tt *testing.T) {
 			recorder := httptest.NewRecorder()
 			srw := newStatusRecordingResponseWriter(recorder)
 
-			if tt.writeHeader {
-				srw.WriteHeader(tt.customStatus)
+			if tc.writeHeader {
+				srw.WriteHeader(tc.customStatus)
 			}
 			srw.Write([]byte(bodyContent))
 
-			assert.Equal(t, tt.expectedCode, srw.statusCode)
+			assert.Equal(tt, tc.expectedCode, srw.statusCode)
 			// nolint: bodyclose // not required here
-			assert.Equal(t, tt.expectedCode, recorder.Result().StatusCode)
-			assert.Equal(t, tt.expectedBody, recorder.Body.String())
+			assert.Equal(tt, tc.expectedCode, recorder.Result().StatusCode)
+			assert.Equal(tt, tc.expectedBody, recorder.Body.String())
 		})
 	}
 }
@@ -859,7 +859,7 @@ func TestRecordLSNMiddleware(t *testing.T) {
 		}
 	}
 
-	for _, testcase := range []struct {
+	for _, testCase := range []struct {
 		name            string
 		endpoint        string
 		method          string
@@ -934,23 +934,23 @@ func TestRecordLSNMiddleware(t *testing.T) {
 			status:   http.StatusInternalServerError,
 		},
 	} {
-		t.Run(testcase.name, func(t *testing.T) {
-			app.registerDistribution(testcase.endpoint, testDispatcher(testcase.status))
-			route := router.GetRoute(testcase.endpoint).Host(serverURL.Host)
-			u, err := route.URL(testcase.vars...)
-			require.NoError(t, err)
+		t.Run(testCase.name, func(tt *testing.T) {
+			app.registerDistribution(testCase.endpoint, testDispatcher(testCase.status))
+			route := router.GetRoute(testCase.endpoint).Host(serverURL.Host)
+			u, err := route.URL(testCase.vars...)
+			require.NoError(tt, err)
 
-			req, err := http.NewRequest(testcase.method, u.String(), nil)
-			require.NoError(t, err)
+			req, err := http.NewRequest(testCase.method, u.String(), nil)
+			require.NoError(tt, err)
 
-			if testcase.shouldRecordLSN {
+			if testCase.shouldRecordLSN {
 				mockDB.EXPECT().RecordLSN(gomock.Any(), gomock.Any()).Times(1)
 			}
 
 			resp, err := http.DefaultClient.Do(req)
-			require.NoError(t, err)
+			require.NoError(tt, err)
 			defer resp.Body.Close()
-			require.Equal(t, testcase.status, resp.StatusCode)
+			require.Equal(tt, testCase.status, resp.StatusCode)
 		})
 	}
 }
@@ -960,7 +960,7 @@ func TestNewApp_Locks_Errors(t *testing.T) {
 	config := testConfig()
 	delete(config.Storage, "testdriver")
 
-	tcs := map[string]struct {
+	testCases := map[string]struct {
 		rootdir         string
 		databaseEnabled configuration.DatabaseEnabled
 		expectedError   error
@@ -983,8 +983,8 @@ func TestNewApp_Locks_Errors(t *testing.T) {
 		// we can skip this test while the FF_ENFORCE_LOCKFILES exists
 	}
 
-	for tn, tc := range tcs {
-		t.Run(tn, func(t *testing.T) {
+	for tn, tc := range testCases {
+		t.Run(tn, func(tt *testing.T) {
 			config.Storage["filesystem"] = map[string]any{
 				"rootdirectory": tc.rootdir,
 			}
@@ -992,10 +992,10 @@ func TestNewApp_Locks_Errors(t *testing.T) {
 
 			// Temporary use of FF while other tests are updated and fixed
 			// see https://gitlab.com/gitlab-org/container-registry/-/issues/1335
-			t.Setenv(feature.EnforceLockfiles.EnvVariable, "true")
+			tt.Setenv(feature.EnforceLockfiles.EnvVariable, "true")
 
 			_, err := NewApp(ctx, config)
-			require.ErrorIs(t, err, tc.expectedError)
+			require.ErrorIs(tt, err, tc.expectedError)
 		})
 	}
 }
@@ -1007,7 +1007,7 @@ func TestNewApp_Locks_NoManifestsInFilesystem(t *testing.T) {
 	config := testConfig()
 	delete(config.Storage, "testdriver")
 
-	tcs := []struct {
+	testCases := []struct {
 		name      string
 		createDir bool
 	}{
@@ -1021,11 +1021,11 @@ func TestNewApp_Locks_NoManifestsInFilesystem(t *testing.T) {
 			createDir: false,
 		},
 	}
-	for _, tc := range tcs {
-		t.Run(tc.name, func(t *testing.T) {
-			tmpDir := t.TempDir()
+	for _, tc := range testCases {
+		t.Run(tc.name, func(tt *testing.T) {
+			tmpDir := tt.TempDir()
 			if tc.createDir {
-				require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "docker/registry/v2/repositories"), os.FileMode(0o755)))
+				require.NoError(tt, os.MkdirAll(filepath.Join(tmpDir, "docker/registry/v2/repositories"), os.FileMode(0o755)))
 			}
 
 			config.Storage["filesystem"] = map[string]any{
@@ -1034,12 +1034,12 @@ func TestNewApp_Locks_NoManifestsInFilesystem(t *testing.T) {
 
 			// Temporary use of FF while other tests are updated and fixed
 			// see https://gitlab.com/gitlab-org/container-registry/-/issues/1335
-			t.Setenv(feature.EnforceLockfiles.EnvVariable, "true")
+			tt.Setenv(feature.EnforceLockfiles.EnvVariable, "true")
 
 			_, err := NewApp(ctx, config)
-			require.NoError(t, err)
+			require.NoError(tt, err)
 
-			require.NoFileExists(t, filepath.Join(tmpDir, "docker/registry/lockfiles/filesystem-in-use"))
+			require.NoFileExists(tt, filepath.Join(tmpDir, "docker/registry/lockfiles/filesystem-in-use"))
 		})
 	}
 }
@@ -1070,7 +1070,7 @@ func TestDispatcherGitlab_RepoCacheInitialization(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(tc.name, func(tt *testing.T) {
 			app := &App{
 				Config: &configuration.Configuration{
 					Database: configuration.Database{
@@ -1090,7 +1090,7 @@ func TestDispatcherGitlab_RepoCacheInitialization(t *testing.T) {
 			}
 
 			// Initialize the app's router to get proper GitLab v1 routes
-			require.NoError(t, app.initMetaRouter())
+			require.NoError(tt, app.initMetaRouter())
 
 			// Create a test dispatcher that captures the context
 			var capturedContext *Context
@@ -1112,12 +1112,12 @@ func TestDispatcherGitlab_RepoCacheInitialization(t *testing.T) {
 			app.ServeHTTP(w, req)
 
 			// Verify the context was captured
-			require.NotNil(t, capturedContext, "context should be captured")
+			require.NotNil(tt, capturedContext, "context should be captured")
 
 			// Check repoCache initialization
-			require.NotNil(t, capturedContext.repoCache, "repoCache should not be nil when database is enabled")
+			require.NotNil(tt, capturedContext.repoCache, "repoCache should not be nil when database is enabled")
 			// Verify the type of cache based on Redis availability
-			require.IsType(t, tc.expectedType, capturedContext.repoCache, "repoCache should be of expected type")
+			require.IsType(tt, tc.expectedType, capturedContext.repoCache, "repoCache should be of expected type")
 		})
 	}
 }
@@ -1125,7 +1125,7 @@ func TestDispatcherGitlab_RepoCacheInitialization(t *testing.T) {
 func TestApp_initializeMigrationCountMetric(t *testing.T) {
 	ctx := dtestutil.NewContextWithLogger(t)
 
-	t.Run("initializes migration count metrics successfully", func(t *testing.T) {
+	t.Run("initializes migration count metrics successfully", func(tt *testing.T) {
 		app := &App{
 			Context: ctx,
 		}
@@ -1139,7 +1139,7 @@ func TestApp_initializeMigrationCountMetric(t *testing.T) {
 		}
 
 		// This should not panic and should complete successfully
-		require.NotPanics(t, func() {
+		require.NotPanics(tt, func() {
 			app.setMigrationCountMetric(testDB)
 		})
 	})

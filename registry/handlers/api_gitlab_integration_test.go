@@ -285,7 +285,7 @@ func testGitlabAPIRepositoryTagsList(t *testing.T, opts ...configOpt) {
 	dgst, cfgDgst, mediaType, size := createRepositoryWithMultipleIdenticalTags(t, env, imageName.Name(), shuffledTags)
 	waitForReplica(t, env.db)
 
-	tt := []struct {
+	testCases := []struct {
 		name                string
 		queryParams         url.Values
 		expectedOrderedTags []string
@@ -679,28 +679,28 @@ func testGitlabAPIRepositoryTagsList(t *testing.T, opts ...configOpt) {
 		},
 	}
 
-	for _, test := range tt {
-		t.Run(test.name, func(t *testing.T) {
-			u, err := env.builder.BuildGitlabV1RepositoryTagsURL(imageName, test.queryParams)
-			require.NoError(t, err)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(tt *testing.T) {
+			u, err := env.builder.BuildGitlabV1RepositoryTagsURL(imageName, tc.queryParams)
+			require.NoError(tt, err)
 			resp, err := http.Get(u)
-			require.NoError(t, err)
+			require.NoError(tt, err)
 			defer resp.Body.Close()
 
-			require.Equal(t, test.expectedStatus, resp.StatusCode)
+			require.Equal(tt, tc.expectedStatus, resp.StatusCode)
 
-			if test.expectedError != nil {
-				checkBodyHasErrorCodes(t, "", resp, *test.expectedError)
+			if tc.expectedError != nil {
+				checkBodyHasErrorCodes(tt, "", resp, *tc.expectedError)
 				return
 			}
 
 			var body []*handlers.RepositoryTagResponse
 			dec := json.NewDecoder(resp.Body)
 			err = dec.Decode(&body)
-			require.NoError(t, err)
+			require.NoError(tt, err)
 
-			expectedBody := make([]*handlers.RepositoryTagResponse, 0, len(test.expectedOrderedTags))
-			for _, name := range test.expectedOrderedTags {
+			expectedBody := make([]*handlers.RepositoryTagResponse, 0, len(tc.expectedOrderedTags))
+			for _, name := range tc.expectedOrderedTags {
 				expectedBody = append(expectedBody, &handlers.RepositoryTagResponse{
 					// this is what changes
 					Name: name,
@@ -717,21 +717,21 @@ func testGitlabAPIRepositoryTagsList(t *testing.T, opts ...configOpt) {
 			// before comparing. This is the best we can do as we have no control/insight into the
 			// timestamps at which records are inserted on the DB.
 			for _, d := range body {
-				require.Empty(t, d.UpdatedAt)
-				require.NotEmpty(t, d.CreatedAt)
-				require.NotEmpty(t, d.PublishedAt)
+				require.Empty(tt, d.UpdatedAt)
+				require.NotEmpty(tt, d.CreatedAt)
+				require.NotEmpty(tt, d.PublishedAt)
 				d.CreatedAt = ""
 				d.PublishedAt = ""
 			}
 
-			require.Equal(t, expectedBody, body)
+			require.Equal(tt, expectedBody, body)
 
 			_, ok := resp.Header["Link"]
-			if test.expectedLinkHeader != "" {
-				require.True(t, ok)
-				require.Equal(t, test.expectedLinkHeader, resp.Header.Get("Link"))
+			if tc.expectedLinkHeader != "" {
+				require.True(tt, ok)
+				require.Equal(tt, tc.expectedLinkHeader, resp.Header.Get("Link"))
 			} else {
-				require.False(t, ok, "Link header should not exist: %s", resp.Header.Get("Link"))
+				require.False(tt, ok, "Link header should not exist: %s", resp.Header.Get("Link"))
 			}
 		})
 	}
@@ -799,7 +799,7 @@ func TestGitlabAPI_RepositoryTagsList_PublishedAt(t *testing.T) {
 		"eeee":   encodeFilter("2023-06-30T00:00:01.000000Z", "eeee"),
 	}
 
-	tt := map[string]struct {
+	testCases := map[string]struct {
 		descending          bool
 		queryParams         url.Values
 		expectedOrderedTags []string
@@ -922,47 +922,47 @@ func TestGitlabAPI_RepositoryTagsList_PublishedAt(t *testing.T) {
 
 	waitForReplica(t, env.db)
 
-	for tn, test := range tt {
-		t.Run(tn, func(t *testing.T) {
+	for tn, tc := range testCases {
+		t.Run(tn, func(tt *testing.T) {
 			sort := "published_at"
-			if test.descending {
+			if tc.descending {
 				sort = "-" + sort
 			}
-			test.queryParams.Set("sort", sort)
+			tc.queryParams.Set("sort", sort)
 
-			u, err := env.builder.BuildGitlabV1RepositoryTagsURL(imageName, test.queryParams)
-			require.NoError(t, err)
+			u, err := env.builder.BuildGitlabV1RepositoryTagsURL(imageName, tc.queryParams)
+			require.NoError(tt, err)
 
 			resp, err := http.Get(u)
-			require.NoError(t, err)
+			require.NoError(tt, err)
 			defer resp.Body.Close()
 
-			require.Equal(t, http.StatusOK, resp.StatusCode)
+			require.Equal(tt, http.StatusOK, resp.StatusCode)
 
 			var body []*handlers.RepositoryTagResponse
 			dec := json.NewDecoder(resp.Body)
 			err = dec.Decode(&body)
-			require.NoError(t, err)
+			require.NoError(tt, err)
 
-			require.Len(t, body, len(test.expectedOrderedTags))
+			require.Len(tt, body, len(tc.expectedOrderedTags))
 
 			// the updated tags will contain a different digest and setting this up is not practical
 			// we can just test for the names in order and make sure that the published_at date is what
 			// we expect
 			for k, receivedRepoTag := range body {
-				require.Equal(t, test.expectedOrderedTags[k], receivedRepoTag.Name)
-				require.NotEmpty(t, receivedRepoTag.CreatedAt)
-				require.NotEmpty(t, receivedRepoTag.PublishedAt)
+				require.Equal(tt, tc.expectedOrderedTags[k], receivedRepoTag.Name)
+				require.NotEmpty(tt, receivedRepoTag.CreatedAt)
+				require.NotEmpty(tt, receivedRepoTag.PublishedAt)
 
 				if receivedRepoTag.UpdatedAt != "" {
-					require.Equal(t, receivedRepoTag.UpdatedAt, receivedRepoTag.PublishedAt)
+					require.Equal(tt, receivedRepoTag.UpdatedAt, receivedRepoTag.PublishedAt)
 				} else {
-					require.Empty(t, receivedRepoTag.UpdatedAt)
-					require.Equal(t, receivedRepoTag.CreatedAt, receivedRepoTag.PublishedAt)
+					require.Empty(tt, receivedRepoTag.UpdatedAt)
+					require.Equal(tt, receivedRepoTag.CreatedAt, receivedRepoTag.PublishedAt)
 				}
 			}
 
-			assertLinkHeaderForPublishedAt(t, resp.Header.Get("Link"), test.expectedBefore, test.expectedLast, imageName.Name(), sort)
+			assertLinkHeaderForPublishedAt(tt, resp.Header.Get("Link"), tc.expectedBefore, tc.expectedLast, imageName.Name(), sort)
 		})
 	}
 }
@@ -1349,7 +1349,7 @@ func TestGitlabAPI_SubRepositoryList(t *testing.T) {
 
 	waitForReplica(t, env.db)
 
-	tt := []struct {
+	testCases := []struct {
 		name               string
 		queryParams        url.Values
 		expectedRepoPaths  []string
@@ -1438,27 +1438,27 @@ func TestGitlabAPI_SubRepositoryList(t *testing.T) {
 		},
 	}
 
-	for _, test := range tt {
-		t.Run(test.name, func(t *testing.T) {
-			u, err := env.builder.BuildGitlabV1SubRepositoriesURL(baseRepoName, test.queryParams)
-			require.NoError(t, err)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(tt *testing.T) {
+			u, err := env.builder.BuildGitlabV1SubRepositoriesURL(baseRepoName, tc.queryParams)
+			require.NoError(tt, err)
 			resp, err := http.Get(u)
-			require.NoError(t, err)
+			require.NoError(tt, err)
 			defer resp.Body.Close()
 
-			require.Equal(t, test.expectedStatus, resp.StatusCode)
+			require.Equal(tt, tc.expectedStatus, resp.StatusCode)
 
-			if test.expectedError != nil {
-				checkBodyHasErrorCodes(t, "", resp, *test.expectedError)
+			if tc.expectedError != nil {
+				checkBodyHasErrorCodes(tt, "", resp, *tc.expectedError)
 				return
 			}
 
 			var body []*handlers.RepositoryAPIResponse
 			dec := json.NewDecoder(resp.Body)
 			err = dec.Decode(&body)
-			require.NoError(t, err)
-			expectedBody := make([]*handlers.RepositoryAPIResponse, 0, len(test.expectedRepoPaths))
-			for _, path := range test.expectedRepoPaths {
+			require.NoError(tt, err)
+			expectedBody := make([]*handlers.RepositoryAPIResponse, 0, len(tc.expectedRepoPaths))
+			for _, path := range tc.expectedRepoPaths {
 				splitPath := strings.Split(path, "/")
 				expectedBody = append(expectedBody, &handlers.RepositoryAPIResponse{
 					Name:          splitPath[len(splitPath)-1],
@@ -1471,13 +1471,13 @@ func TestGitlabAPI_SubRepositoryList(t *testing.T) {
 			// the response payload before comparing. This is the best we can do as we have no control/insight into the
 			// timestamps at which records are inserted on the DB.
 			for _, d := range body {
-				require.Empty(t, d.UpdatedAt)
-				require.NotEmpty(t, d.CreatedAt)
+				require.Empty(tt, d.UpdatedAt)
+				require.NotEmpty(tt, d.CreatedAt)
 				d.CreatedAt = ""
 			}
 
-			require.Equal(t, expectedBody, body)
-			require.Equal(t, test.expectedLinkHeader, resp.Header.Get("Link"))
+			require.Equal(tt, expectedBody, body)
+			require.Equal(tt, tc.expectedLinkHeader, resp.Header.Get("Link"))
 		})
 	}
 }
@@ -1601,7 +1601,7 @@ func TestGitlabAPI_RenameRepository_WithNoBaseRepository(t *testing.T) {
 	// generate one full access auth actionsToken for all tests
 	actionsToken := tokenProvider.tokenWithActions(fullAccessTokenWithProjectMeta(baseRepoName.Name(), baseRepoName.Name()))
 
-	tt := []struct {
+	testCases := []struct {
 		name               string
 		queryParams        url.Values
 		requestBody        []byte
@@ -1647,53 +1647,53 @@ func TestGitlabAPI_RenameRepository_WithNoBaseRepository(t *testing.T) {
 		},
 	}
 
-	for _, test := range tt {
-		t.Run(test.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(tt *testing.T) {
 			// apply base app config/setup (without authorization) to allow seeding repository with test data
-			envNoAuth := newTestEnv(t)
-			envNoAuth.requireDB(t)
-			envNoAuth.Cleanup(t)
+			envNoAuth := newTestEnv(tt)
+			envNoAuth.requireDB(tt)
+			envNoAuth.Cleanup(tt)
 
 			// seed repos
-			seedMultipleRepositoriesWithTaggedLatestManifest(t, envNoAuth, nestedRepos)
+			seedMultipleRepositoriesWithTaggedLatestManifest(tt, envNoAuth, nestedRepos)
 
 			// override test config/setup to use token based authorization for all proceeding requests
-			srv := testutil.RedisServer(t)
-			envAuth := newTestEnv(t, withRedisCache(srv.Addr()), withTokenAuth(tokenProvider.certPath(), defaultIssuerProps()))
-			envAuth.Cleanup(t)
+			srv := testutil.RedisServer(tt)
+			envAuth := newTestEnv(tt, withRedisCache(srv.Addr()), withTokenAuth(tokenProvider.certPath(), defaultIssuerProps()))
+			envAuth.Cleanup(tt)
 
 			// create and execute test request
-			u, err := envAuth.builder.BuildGitlabV1RepositoryURL(baseRepoName, test.queryParams)
-			require.NoError(t, err)
+			u, err := envAuth.builder.BuildGitlabV1RepositoryURL(baseRepoName, tc.queryParams)
+			require.NoError(tt, err)
 
-			req, err := http.NewRequest(http.MethodPatch, u, bytes.NewReader(test.requestBody))
-			require.NoError(t, err)
+			req, err := http.NewRequest(http.MethodPatch, u, bytes.NewReader(tc.requestBody))
+			require.NoError(tt, err)
 
 			// attach authourization header to request
 			req = tokenProvider.requestWithAuthToken(req, actionsToken)
 
 			// make request
 			resp, err := http.DefaultClient.Do(req)
-			require.NoError(t, err)
+			require.NoError(tt, err)
 			defer resp.Body.Close()
 
 			// assert results
-			require.Equal(t, test.expectedRespStatus, resp.StatusCode)
-			if test.expectedRespError != nil {
-				checkBodyHasErrorCodes(t, "", resp, *test.expectedRespError)
+			require.Equal(tt, tc.expectedRespStatus, resp.StatusCode)
+			if tc.expectedRespError != nil {
+				checkBodyHasErrorCodes(tt, "", resp, *tc.expectedRespError)
 				return
 			}
 			// assert reponses with body are valid
 			var body *handlers.RenameRepositoryAPIResponse
 			err = json.NewDecoder(resp.Body).Decode(&body)
-			if test.expectedRespBody != nil {
-				require.NoError(t, err)
+			if tc.expectedRespBody != nil {
+				require.NoError(tt, err)
 				// assert that the TTL parameter is set and is within 60 seconds
-				requireRenameTTLInRange(t, body.TTL, 60*time.Second)
+				requireRenameTTLInRange(tt, body.TTL, 60*time.Second)
 				// set the TTL parameter to zero value to avoid test time drift comparison
 				body.TTL = time.Time{}
 			}
-			require.Equal(t, test.expectedRespBody, body)
+			require.Equal(tt, tc.expectedRespBody, body)
 		})
 	}
 }
@@ -1726,7 +1726,7 @@ func TestGitlabAPI_RenameRepository_WithBaseRepository(t *testing.T) {
 		},
 	}
 
-	tt := []struct {
+	testCase := []struct {
 		name                 string
 		queryParams          url.Values
 		requestBody          []byte
@@ -1794,61 +1794,61 @@ func TestGitlabAPI_RenameRepository_WithBaseRepository(t *testing.T) {
 		},
 	}
 
-	for _, test := range tt {
-		t.Run(test.name, func(t *testing.T) {
+	for _, tc := range testCase {
+		t.Run(tc.name, func(tt *testing.T) {
 			// apply base app config/setup (without authorization) to allow seeding repository with test data
-			envPre := newTestEnv(t)
-			envPre.requireDB(t)
-			envPre.Cleanup(t)
+			envPre := newTestEnv(tt)
+			envPre.requireDB(tt)
+			envPre.Cleanup(tt)
 
 			// seed repos
 			seedMultipleRepositoriesWithTaggedLatestManifest(t, envPre, nestedRepos)
 
 			// override test config/setup to use token based authorization for all proceeding requests
-			srv := testutil.RedisServer(t)
+			srv := testutil.RedisServer(tt)
 			opts := []configOpt{withRedisCache(srv.Addr()), withTokenAuth(tokenProvider.certPath(), defaultIssuerProps())}
-			if test.notificationEnabled {
+			if tc.notificationEnabled {
 				opts = append(opts, withWebhookNotifications(notifCfg))
 			}
 
-			envPost := newTestEnv(t, opts...)
-			envPost.Cleanup(t)
+			envPost := newTestEnv(tt, opts...)
+			envPost.Cleanup(tt)
 
 			// create request
-			u, err := envPost.builder.BuildGitlabV1RepositoryURL(baseRepoName, test.queryParams)
-			require.NoError(t, err)
+			u, err := envPost.builder.BuildGitlabV1RepositoryURL(baseRepoName, tc.queryParams)
+			require.NoError(tt, err)
 
-			req, err := http.NewRequest(http.MethodPatch, u, bytes.NewReader(test.requestBody))
-			require.NoError(t, err)
+			req, err := http.NewRequest(http.MethodPatch, u, bytes.NewReader(tc.requestBody))
+			require.NoError(tt, err)
 
 			// attach authourization header to request
 			req = tokenProvider.requestWithAuthToken(req, actionsToken)
 
 			// execute request
 			resp, err := http.DefaultClient.Do(req)
-			require.NoError(t, err)
+			require.NoError(tt, err)
 			defer resp.Body.Close()
 
 			// assert results
-			require.Equal(t, test.expectedRespStatus, resp.StatusCode)
-			if test.expectedRespError != nil {
-				checkBodyHasErrorCodes(t, "", resp, *test.expectedRespError)
+			require.Equal(tt, tc.expectedRespStatus, resp.StatusCode)
+			if tc.expectedRespError != nil {
+				checkBodyHasErrorCodes(tt, "", resp, *tc.expectedRespError)
 				return
 			}
 			// assert reponses with body are valid
 			var body *handlers.RenameRepositoryAPIResponse
 			err = json.NewDecoder(resp.Body).Decode(&body)
-			if test.expectedRespBody != nil {
-				require.NoError(t, err)
+			if tc.expectedRespBody != nil {
+				require.NoError(tt, err)
 				// assert that the TTL parameter is set and is within 60 seconds
-				requireRenameTTLInRange(t, body.TTL, 60*time.Second)
+				requireRenameTTLInRange(tt, body.TTL, 60*time.Second)
 				// set the TTL parameter to zero to avoid test time drift comparison
 				body.TTL = time.Time{}
 			}
-			require.Equal(t, test.expectedRespBody, body)
+			require.Equal(tt, tc.expectedRespBody, body)
 
-			if test.notificationEnabled {
-				envPost.ns.AssertEventNotification(t, test.expectedNotification)
+			if tc.notificationEnabled {
+				envPost.ns.AssertEventNotification(tt, tc.expectedNotification)
 			}
 		})
 	}
@@ -2201,7 +2201,7 @@ func TestGitlabAPI_RenameRepository_InvalidTokenProjectPathMeta(t *testing.T) {
 	u, err := envPost.builder.BuildGitlabV1RepositoryURL(baseRepoName)
 	require.NoError(t, err)
 
-	tt := []struct {
+	testCases := []struct {
 		name               string
 		expectedRespStatus int
 		expectedRespError  *errcode.ErrorCode
@@ -2221,23 +2221,23 @@ func TestGitlabAPI_RenameRepository_InvalidTokenProjectPathMeta(t *testing.T) {
 		},
 	}
 
-	for _, test := range tt {
-		t.Run(test.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(tt *testing.T) {
 			// create request
 			req, err := http.NewRequest(http.MethodPatch, u, bytes.NewReader(requestBody))
-			require.NoError(t, err)
+			require.NoError(tt, err)
 
 			// attach authourization header to request
-			req = tokenProvider.requestWithAuthActions(req, test.tokenActions)
+			req = tokenProvider.requestWithAuthActions(req, tc.tokenActions)
 
 			// make request
 			resp, err := http.DefaultClient.Do(req)
-			require.NoError(t, err)
+			require.NoError(tt, err)
 			defer resp.Body.Close()
 
 			// assert results
-			require.Equal(t, test.expectedRespStatus, resp.StatusCode)
-			checkBodyHasErrorCodes(t, "", resp, *test.expectedRespError)
+			require.Equal(tt, tc.expectedRespStatus, resp.StatusCode)
+			checkBodyHasErrorCodes(tt, "", resp, *tc.expectedRespError)
 		})
 	}
 }
@@ -2263,7 +2263,7 @@ func TestGitlabAPI_RenameRepositoryNamespace(t *testing.T) {
 		},
 	}
 
-	tt := []struct {
+	testCases := []struct {
 		name                 string
 		expectedRespStatus   int
 		expectedRespError    *errcode.ErrorCode
@@ -2335,48 +2335,48 @@ func TestGitlabAPI_RenameRepositoryNamespace(t *testing.T) {
 		},
 	}
 
-	for _, test := range tt {
-		t.Run(test.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(tt *testing.T) {
 			// apply base app config/setup (without authorization) to allow seeding repository with test data
-			envPre := newTestEnv(t)
-			envPre.Cleanup(t)
-			envPre.requireDB(t)
+			envPre := newTestEnv(tt)
+			envPre.Cleanup(tt)
+			envPre.requireDB(tt)
 
 			// seed repos
-			seedMultipleRepositoriesWithTaggedLatestManifest(t, envPre, nestedRepos)
+			seedMultipleRepositoriesWithTaggedLatestManifest(tt, envPre, nestedRepos)
 
 			// override test config/setup to use token based authorization for all proceeding requests
-			srv := testutil.RedisServer(t)
+			srv := testutil.RedisServer(tt)
 			opts := []configOpt{withRedisCache(srv.Addr()), withTokenAuth(tokenProvider.certPath(), defaultIssuerProps())}
-			if test.notificationEnabled {
+			if tc.notificationEnabled {
 				opts = append(opts, withWebhookNotifications(notifCfg))
 			}
-			envPost := newTestEnv(t, opts...)
-			envPost.Cleanup(t)
+			envPost := newTestEnv(tt, opts...)
+			envPost.Cleanup(tt)
 
 			// create and execute test request
 			u, err := envPost.builder.BuildGitlabV1RepositoryURL(baseRepoName)
-			require.NoError(t, err)
+			require.NoError(tt, err)
 
-			req, err := http.NewRequest(http.MethodPatch, u, bytes.NewReader(test.requestBody))
-			require.NoError(t, err)
+			req, err := http.NewRequest(http.MethodPatch, u, bytes.NewReader(tc.requestBody))
+			require.NoError(tt, err)
 
 			// attach authourization header to request
-			req = tokenProvider.requestWithAuthActions(req, test.tokenActions)
+			req = tokenProvider.requestWithAuthActions(req, tc.tokenActions)
 
 			// make request
 			resp, err := http.DefaultClient.Do(req)
-			require.NoError(t, err)
+			require.NoError(tt, err)
 			defer resp.Body.Close()
 
 			// assert results
-			require.Equal(t, test.expectedRespStatus, resp.StatusCode)
-			if test.expectedRespError != nil {
-				checkBodyHasErrorCodes(t, "", resp, *test.expectedRespError)
+			require.Equal(tt, tc.expectedRespStatus, resp.StatusCode)
+			if tc.expectedRespError != nil {
+				checkBodyHasErrorCodes(tt, "", resp, *tc.expectedRespError)
 			}
 
-			if test.notificationEnabled {
-				envPost.ns.AssertEventNotification(t, test.expectedNotification)
+			if tc.notificationEnabled {
+				envPost.ns.AssertEventNotification(tt, tc.expectedNotification)
 			}
 		})
 	}
@@ -2428,16 +2428,16 @@ func TestGitlabAPI_RepositoryTagDetail(t *testing.T) {
 	repoRef, err := reference.WithName(repoPath)
 	require.NoError(t, err)
 
-	t.Run("non-existing tag", func(t *testing.T) {
-		testNonExistingTag(t, env, repoRef, repoPath)
+	t.Run("non-existing tag", func(tt *testing.T) {
+		testNonExistingTag(tt, env, repoRef, repoPath)
 	})
 
-	t.Run("single manifest tag", func(t *testing.T) {
-		testSingleManifestTag(t, env, repoRef, repoPath)
+	t.Run("single manifest tag", func(tt *testing.T) {
+		testSingleManifestTag(tt, env, repoRef, repoPath)
 	})
 
-	t.Run("manifest list tag", func(t *testing.T) {
-		testManifestListTag(t, env, repoRef, repoPath)
+	t.Run("manifest list tag", func(tt *testing.T) {
+		testManifestListTag(tt, env, repoRef, repoPath)
 	})
 }
 

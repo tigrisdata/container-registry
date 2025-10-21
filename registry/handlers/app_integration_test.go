@@ -19,7 +19,7 @@ import (
 )
 
 func TestNewApp_Lockfiles(t *testing.T) {
-	tcs := map[string]struct {
+	testCases := map[string]struct {
 		path               string
 		dbEnabled          bool
 		ffEnforceLockfiles bool
@@ -63,13 +63,13 @@ func TestNewApp_Lockfiles(t *testing.T) {
 		},
 	}
 
-	for tn, tc := range tcs {
-		t.Run(tn, func(t *testing.T) {
+	for tn, tc := range testCases {
+		t.Run(tn, func(tt *testing.T) {
 			if os.Getenv("REGISTRY_DATABASE_ENABLED") != "true" {
-				t.Skip("Skipping test as database is disabled")
+				tt.Skip("Skipping test as database is disabled")
 			}
 
-			t.Setenv(feature.EnforceLockfiles.EnvVariable, strconv.FormatBool(tc.ffEnforceLockfiles))
+			tt.Setenv(feature.EnforceLockfiles.EnvVariable, strconv.FormatBool(tc.ffEnforceLockfiles))
 
 			opts := []configOpt{withFSDriver(tc.path)}
 			if !tc.dbEnabled {
@@ -79,15 +79,15 @@ func TestNewApp_Lockfiles(t *testing.T) {
 			config := newConfig(opts...)
 			app, err := handlers.NewApp(context.Background(), &config)
 			if tc.expectedErr != nil {
-				require.ErrorIs(t, err, tc.expectedErr)
+				require.ErrorIs(tt, err, tc.expectedErr)
 				return
 			}
 
-			require.NoError(t, err)
-			require.NotNil(t, app)
+			require.NoError(tt, err)
+			require.NotNil(tt, app)
 
-			t.Cleanup(func() {
-				restoreLockfiles(t, &config)
+			tt.Cleanup(func() {
+				restoreLockfiles(tt, &config)
 			})
 		})
 	}
