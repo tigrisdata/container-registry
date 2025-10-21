@@ -1430,10 +1430,10 @@ func (imp *Importer) importAllRepositoriesImpl(ctx context.Context) (err error) 
 
 	isTagsTableEmpty, err := imp.isTagsTableEmpty(ctx)
 	if err != nil {
-		return fmt.Errorf("checking if tags table is empty: %w", err)
+		return fmt.Errorf("chechking if tags table is empty: %w", err)
 	}
 	if !isTagsTableEmpty {
-		log.GetLogger(log.WithContext(ctx)).WithError(errTagsTableNotEmpty).Error("unable to continue import")
+		log.GetLogger(log.WithContext(ctx)).WithError(errTagsTableNotEmpty)
 		return errTagsTableNotEmpty
 	}
 
