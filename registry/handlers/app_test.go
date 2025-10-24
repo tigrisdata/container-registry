@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math/rand/v2"
 	"net/http"
 	"net/http/httptest"
@@ -18,6 +19,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 
 	"github.com/docker/distribution/configuration"
@@ -37,7 +39,10 @@ import (
 	"github.com/docker/distribution/registry/internal/testutil"
 	"github.com/docker/distribution/registry/storage"
 	memorycache "github.com/docker/distribution/registry/storage/cache/memory"
+	storagedriver "github.com/docker/distribution/registry/storage/driver"
 	_ "github.com/docker/distribution/registry/storage/driver/filesystem"
+	"github.com/docker/distribution/registry/storage/driver/inmemory"
+	storagemiddleware "github.com/docker/distribution/registry/storage/driver/middleware"
 	"github.com/docker/distribution/registry/storage/driver/testdriver"
 	dtestutil "github.com/docker/distribution/testutil"
 )
@@ -1143,4 +1148,295 @@ func TestApp_initializeMigrationCountMetric(t *testing.T) {
 			app.setMigrationCountMetric(testDB)
 		})
 	})
+}
+
+// SDriverInitFuncMock is a mock for testing storage middleware initialization
+type SDriverInitFuncMock struct {
+	sDriverCalledWith storagedriver.StorageDriver
+	sDriverReturned   storagedriver.StorageDriver
+	optionsCalledWith map[string]any
+	stopFunc          func() error
+	returnError       error
+}
+
+// NewInitFuncMock creates a new mock with an inmemory driver as the returned driver
+func NewInitFuncMock() *SDriverInitFuncMock {
+	return &SDriverInitFuncMock{
+		sDriverReturned: inmemory.New(),
+	}
+}
+
+// InitFunc returns a storagemiddleware.InitFunc that captures call arguments
+func (m *SDriverInitFuncMock) InitFunc() storagemiddleware.InitFunc {
+	return func(storageDriver storagedriver.StorageDriver, options map[string]any) (storagedriver.StorageDriver, func() error, error) {
+		m.sDriverCalledWith = storageDriver
+		m.optionsCalledWith = options
+		return m.sDriverReturned, m.stopFunc, m.returnError
+	}
+}
+
+type ApplyStorageMiddlewareTestSuite struct {
+	suite.Suite
+
+	ctx context.Context
+	app *App
+}
+
+func (s *ApplyStorageMiddlewareTestSuite) SetupTest() {
+	storagemiddleware.Clear()
+
+	s.ctx = dtestutil.NewContextWithLogger(s.T())
+	config := testConfig()
+
+	var err error
+	s.app, err = NewApp(s.ctx, config)
+	require.NoError(s.T(), err)
+
+	s.app.driver = inmemory.New()
+}
+
+func (*ApplyStorageMiddlewareTestSuite) TearDownTest() {
+	storagemiddleware.Clear()
+}
+
+func (s *ApplyStorageMiddlewareTestSuite) TestSingleMiddleware_HappyPath() {
+	mock := NewInitFuncMock()
+	err := storagemiddleware.Register("googlecdn", mock.InitFunc())
+	require.NoError(s.T(), err)
+
+	originalDriver := s.app.driver
+
+	middlewares := []configuration.Middleware{
+		{
+			Name:     "googlecdn",
+			Disabled: false,
+			Options: map[string]any{
+				"param1": "value1",
+			},
+		},
+	}
+
+	err = s.app.applyStorageMiddleware(middlewares)
+
+	require.NoError(s.T(), err)
+	require.NotNil(s.T(), mock.sDriverCalledWith, "InitFunc should have been called")
+	require.Same(s.T(), originalDriver, mock.sDriverCalledWith, "InitFunc should receive the original driver")
+	require.Same(s.T(), mock.sDriverReturned, s.app.driver, "App driver should be updated to the returned driver")
+	require.Equal(s.T(), "value1", mock.optionsCalledWith["param1"], "Options should be passed correctly")
+}
+
+func (s *ApplyStorageMiddlewareTestSuite) TestMultipleCDN_ReturnsError() {
+	cloudfrontMock := NewInitFuncMock()
+	err := storagemiddleware.Register("cloudfront", cloudfrontMock.InitFunc())
+	require.NoError(s.T(), err)
+
+	googlecdnMock := NewInitFuncMock()
+	err = storagemiddleware.Register("googlecdn", googlecdnMock.InitFunc())
+	require.NoError(s.T(), err)
+
+	middlewares := []configuration.Middleware{
+		{Name: "cloudfront", Options: make(map[string]any)},
+		{Name: "googlecdn", Options: make(map[string]any)},
+	}
+
+	err = s.app.applyStorageMiddleware(middlewares)
+
+	require.Error(s.T(), err)
+	require.Contains(s.T(), err.Error(), "using more than one storage CDN middleware is not supported")
+}
+
+func (s *ApplyStorageMiddlewareTestSuite) TestURLCacheWithCDN_NoReorderingNeeded() {
+	s.app.redisCache = &iredis.Cache{}
+
+	urlcacheMock := NewInitFuncMock()
+	err := storagemiddleware.Register("urlcache", urlcacheMock.InitFunc())
+	require.NoError(s.T(), err)
+
+	cloudfrontMock := NewInitFuncMock()
+	err = storagemiddleware.Register("cloudfront", cloudfrontMock.InitFunc())
+	require.NoError(s.T(), err)
+
+	originalDriver := s.app.driver
+
+	middlewares := []configuration.Middleware{
+		{Name: "cloudfront", Options: make(map[string]any)},
+		{Name: "urlcache", Options: make(map[string]any)},
+	}
+
+	err = s.app.applyStorageMiddleware(middlewares)
+
+	require.NoError(s.T(), err)
+
+	require.Same(s.T(), originalDriver, urlcacheMock.sDriverCalledWith)
+	require.Same(s.T(), urlcacheMock.sDriverReturned, cloudfrontMock.sDriverCalledWith)
+	require.Same(s.T(), cloudfrontMock.sDriverReturned, s.app.driver)
+
+	require.Same(s.T(), s.app.redisCache, urlcacheMock.optionsCalledWith["_redisCache"])
+}
+
+func (s *ApplyStorageMiddlewareTestSuite) TestURLCacheAfterCDN_RequiresReordering() {
+	s.app.redisCache = &iredis.Cache{}
+
+	urlcacheMock := NewInitFuncMock()
+	err := storagemiddleware.Register("urlcache", urlcacheMock.InitFunc())
+	require.NoError(s.T(), err)
+
+	cloudfrontMock := NewInitFuncMock()
+	err = storagemiddleware.Register("cloudfront", cloudfrontMock.InitFunc())
+	require.NoError(s.T(), err)
+
+	originalDriver := s.app.driver
+
+	middlewares := []configuration.Middleware{
+		{Name: "urlcache", Options: make(map[string]any)},
+		{Name: "cloudfront", Options: make(map[string]any)},
+	}
+
+	err = s.app.applyStorageMiddleware(middlewares)
+
+	require.NoError(s.T(), err)
+
+	require.Same(s.T(), originalDriver, urlcacheMock.sDriverCalledWith)
+	require.Same(s.T(), urlcacheMock.sDriverReturned, cloudfrontMock.sDriverCalledWith)
+	require.Same(s.T(), cloudfrontMock.sDriverReturned, s.app.driver)
+
+	require.Same(s.T(), s.app.redisCache, urlcacheMock.optionsCalledWith["_redisCache"])
+}
+
+func (s *ApplyStorageMiddlewareTestSuite) TestURLCacheWithSingleOtherMiddleware() {
+	s.app.redisCache = &iredis.Cache{}
+
+	urlcacheMock := NewInitFuncMock()
+	err := storagemiddleware.Register("urlcache", urlcacheMock.InitFunc())
+	require.NoError(s.T(), err)
+
+	otherMock := NewInitFuncMock()
+	err = storagemiddleware.Register("othermiddleware", otherMock.InitFunc())
+	require.NoError(s.T(), err)
+
+	originalDriver := s.app.driver
+
+	middlewares := []configuration.Middleware{
+		{Name: "othermiddleware", Options: make(map[string]any)},
+		{Name: "urlcache", Options: make(map[string]any)},
+	}
+
+	err = s.app.applyStorageMiddleware(middlewares)
+
+	require.NoError(s.T(), err)
+
+	require.Same(s.T(), originalDriver, otherMock.sDriverCalledWith)
+	require.Same(s.T(), otherMock.sDriverReturned, urlcacheMock.sDriverCalledWith)
+	require.Same(s.T(), urlcacheMock.sDriverReturned, s.app.driver)
+}
+
+func (s *ApplyStorageMiddlewareTestSuite) TestMultipleURLCache_ReturnsError() {
+	s.app.redisCache = &iredis.Cache{}
+
+	urlcacheMock1 := NewInitFuncMock()
+	err := storagemiddleware.Register("urlcache", urlcacheMock1.InitFunc())
+	require.NoError(s.T(), err)
+
+	middlewares := []configuration.Middleware{
+		{Name: "urlcache", Options: make(map[string]any)},
+		{Name: "urlcache", Options: make(map[string]any)},
+	}
+
+	err = s.app.applyStorageMiddleware(middlewares)
+
+	require.Error(s.T(), err)
+	require.Contains(s.T(), err.Error(), "urlcache storage middleware can only be applied once")
+}
+
+func (s *ApplyStorageMiddlewareTestSuite) TestGetReturnsError() {
+	middlewares := []configuration.Middleware{
+		{Name: "nonexistent", Options: make(map[string]any)},
+	}
+
+	err := s.app.applyStorageMiddleware(middlewares)
+
+	require.Error(s.T(), err)
+	require.Contains(s.T(), err.Error(), "unable to configure storage middleware")
+	require.Contains(s.T(), err.Error(), "nonexistent")
+}
+
+func (s *ApplyStorageMiddlewareTestSuite) TestInitFuncReturnsError() {
+	mock := NewInitFuncMock()
+	mock.returnError = fmt.Errorf("initialization failed")
+
+	err := storagemiddleware.Register("failingmiddleware", mock.InitFunc())
+	require.NoError(s.T(), err)
+
+	middlewares := []configuration.Middleware{
+		{Name: "failingmiddleware", Options: make(map[string]any)},
+	}
+
+	err = s.app.applyStorageMiddleware(middlewares)
+
+	require.Error(s.T(), err)
+	require.Contains(s.T(), err.Error(), "unable to configure storage middleware")
+	require.Contains(s.T(), err.Error(), "initialization failed")
+}
+
+func (s *ApplyStorageMiddlewareTestSuite) TestShutdownFuncsRegistered() {
+	shutdownCalled := false
+	mock := NewInitFuncMock()
+	mock.stopFunc = func() error {
+		shutdownCalled = true
+		return nil
+	}
+
+	err := storagemiddleware.Register("testmiddleware", mock.InitFunc())
+	require.NoError(s.T(), err)
+
+	middlewares := []configuration.Middleware{
+		{Name: "testmiddleware", Options: make(map[string]any)},
+	}
+
+	err = s.app.applyStorageMiddleware(middlewares)
+	require.NoError(s.T(), err)
+
+	shutdownErr := s.app.GracefulShutdown(s.ctx)
+
+	require.NoError(s.T(), shutdownErr)
+	require.True(s.T(), shutdownCalled, "Shutdown function should have been called")
+}
+
+func (s *ApplyStorageMiddlewareTestSuite) TestMultipleShutdownFuncs() {
+	shutdown1Called := false
+	shutdown2Called := false
+
+	mock1 := NewInitFuncMock()
+	mock1.stopFunc = func() error {
+		shutdown1Called = true
+		return nil
+	}
+	err := storagemiddleware.Register("middleware1", mock1.InitFunc())
+	require.NoError(s.T(), err)
+
+	mock2 := NewInitFuncMock()
+	mock2.stopFunc = func() error {
+		shutdown2Called = true
+		return nil
+	}
+	err = storagemiddleware.Register("middleware2", mock2.InitFunc())
+	require.NoError(s.T(), err)
+
+	middlewares := []configuration.Middleware{
+		{Name: "middleware1", Options: make(map[string]any)},
+		{Name: "middleware2", Options: make(map[string]any)},
+	}
+
+	err = s.app.applyStorageMiddleware(middlewares)
+	require.NoError(s.T(), err)
+
+	shutdownErr := s.app.GracefulShutdown(s.ctx)
+
+	require.NoError(s.T(), shutdownErr)
+	require.True(s.T(), shutdown1Called, "First shutdown function should have been called")
+	require.True(s.T(), shutdown2Called, "Second shutdown function should have been called")
+}
+
+func TestApplyStorageMiddlewareTestSuite(t *testing.T) {
+	suite.Run(t, new(ApplyStorageMiddlewareTestSuite))
 }

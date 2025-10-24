@@ -37,3 +37,9 @@ func Get(name string, options map[string]any, storageDriver storagedriver.Storag
 
 	return nil, nil, fmt.Errorf("no storage middleware registered with name: %s", name)
 }
+
+// Clear resets middlewares, it should be used only in tests as registry no
+// longer accesses registered middlewares list after initialization.
+func Clear() {
+	storageMiddlewares = nil
+}
