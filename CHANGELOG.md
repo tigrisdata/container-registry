@@ -1,3 +1,30 @@
+## [4.30.0](https://gitlab.com/gitlab-org/container-registry/compare/v4.29.0-gitlab...v4.30.0) (2025-10-27)
+
+
+### Features
+
+* **bbm:** add bbm progress tracking metric ([395441e](https://gitlab.com/gitlab-org/container-registry/commit/395441e6b505ecea88e2258a0a64acdf9a9de0dc))
+* **configuration:** allow database.enabled to accept bool and string values ([ad39c18](https://gitlab.com/gitlab-org/container-registry/commit/ad39c18698cecd2c5f58de9e2210b7eecc28230b))
+* **datastore:** create null index on blob id columns ([cf1af7f](https://gitlab.com/gitlab-org/container-registry/commit/cf1af7f7764e950576f20a39558039c59b1107e8))
+
+
+### Bug Fixes
+
+* improve registry shutdown behaviour ([d0e12e3](https://gitlab.com/gitlab-org/container-registry/commit/d0e12e327795affbd0e4d1fbc6f900c7c3157c43))
+* make sure urlcache is last in the storage CDNs chain ([47568f0](https://gitlab.com/gitlab-org/container-registry/commit/47568f09e9634bcb982585a7684ce919e0b01424))
+* **notifications:** Remove deprecated retryingSink with backoffSink and add backward compatibility ([ba2dc33](https://gitlab.com/gitlab-org/container-registry/commit/ba2dc330c414297c25a500257e69f5b3508ccdf9))
+
+
+### Performance Improvements
+
+* **handlers:** pass non-zero value for ids cap ([a33cb4c](https://gitlab.com/gitlab-org/container-registry/commit/a33cb4c0cbcb5aad4943dac099f5c3b279474014))
+
+
+### Reverts
+
+* Revert "chore(datastore): clarify tags present import error message" ([5445a81](https://gitlab.com/gitlab-org/container-registry/commit/5445a8195b951fd3593c13de96695b7808cf7837))
+* Revert "chore: log also" ([94a0838](https://gitlab.com/gitlab-org/container-registry/commit/94a0838b3f11e087072fd0e6c1e76f0f0cd30e65))
+
 ## [4.29.0](https://gitlab.com/gitlab-org/container-registry/compare/v4.28.0-gitlab...v4.29.0) (2025-10-13)
 
 
