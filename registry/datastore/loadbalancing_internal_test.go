@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 )
 
 func TestDBLoadBalancer_Close(t *testing.T) {
@@ -114,8 +115,9 @@ func TestDBLoadBalancer_Replica(t *testing.T) {
 
 		// Create load balancer with no replicas
 		lb := &DBLoadBalancer{
-			primary:  primaryDB,
-			replicas: make([]*DB, 0),
+			primary:             primaryDB,
+			replicas:            make([]*DB, 0),
+			connectivityTracker: NewReplicaConnectivityTracker(),
 		}
 
 		// Should return primary when no replicas available
@@ -132,8 +134,9 @@ func TestDBLoadBalancer_Replica(t *testing.T) {
 
 		// Create load balancer with multiple replicas
 		lb := &DBLoadBalancer{
-			primary:  primaryDB,
-			replicas: []*DB{replica1, replica2, replica3},
+			primary:             primaryDB,
+			replicas:            []*DB{replica1, replica2, replica3},
+			connectivityTracker: NewReplicaConnectivityTracker(),
 		}
 
 		// First call should return first replica
@@ -176,9 +179,10 @@ func TestDBLoadBalancer_Replica(t *testing.T) {
 
 		// Create load balancer with tracker
 		lb := &DBLoadBalancer{
-			primary:    primaryDB,
-			replicas:   []*DB{replica1, replica2, replica3},
-			lagTracker: tracker,
+			primary:             primaryDB,
+			replicas:            []*DB{replica1, replica2, replica3},
+			lagTracker:          tracker,
+			connectivityTracker: NewReplicaConnectivityTracker(),
 		}
 
 		// First call should return first replica
@@ -224,9 +228,10 @@ func TestDBLoadBalancer_Replica(t *testing.T) {
 
 		// Create load balancer with tracker
 		lb := &DBLoadBalancer{
-			primary:    primaryDB,
-			replicas:   []*DB{replica1, replica2},
-			lagTracker: tracker,
+			primary:             primaryDB,
+			replicas:            []*DB{replica1, replica2},
+			lagTracker:          tracker,
+			connectivityTracker: NewReplicaConnectivityTracker(),
 		}
 
 		// Should fall back to primary when all replicas are quarantined
@@ -257,9 +262,10 @@ func TestDBLoadBalancer_Replica(t *testing.T) {
 
 		// Create load balancer with tracker
 		lb := &DBLoadBalancer{
-			primary:    primaryDB,
-			replicas:   []*DB{replica1, replica2, replica3},
-			lagTracker: tracker,
+			primary:             primaryDB,
+			replicas:            []*DB{replica1, replica2, replica3},
+			lagTracker:          tracker,
+			connectivityTracker: NewReplicaConnectivityTracker(),
 		}
 
 		// First call should return replica1
@@ -1625,4 +1631,592 @@ func TestDBLoadBalancer_StartLagCheck_PrimaryLSNError(t *testing.T) {
 
 	// Verify primary mock expectations (LSN query)
 	require.NoError(t, primaryMock.ExpectationsWereMet())
+}
+
+func TestReplicaConnectivityTrackerSuite(t *testing.T) {
+	suite.Run(t, new(ReplicaConnectivityTrackerSuite))
+}
+
+type ReplicaConnectivityTrackerSuite struct {
+	suite.Suite
+	tracker *ReplicaConnectivityTracker
+	ctx     context.Context
+	addr    string
+}
+
+func (s *ReplicaConnectivityTrackerSuite) SetupTest() {
+	s.tracker = NewReplicaConnectivityTracker()
+	s.ctx = context.Background()
+	s.addr = "replica1:5432"
+}
+
+func (s *ReplicaConnectivityTrackerSuite) TestRecordFailure() {
+	// Record first failure
+	s.tracker.RecordFailure(s.ctx, s.addr)
+	info := s.tracker.Get(s.addr)
+	require.NotNil(s.T(), info)
+	require.Equal(s.T(), 1, info.ConsecutiveFailures)
+	require.False(s.T(), info.Quarantined)
+
+	// Record second failure
+	s.tracker.RecordFailure(s.ctx, s.addr)
+	info = s.tracker.Get(s.addr)
+	require.Equal(s.T(), 2, info.ConsecutiveFailures)
+	require.False(s.T(), info.Quarantined)
+
+	// Record third failure - should trigger quarantine
+	s.tracker.RecordFailure(s.ctx, s.addr)
+	info = s.tracker.Get(s.addr)
+	require.Equal(s.T(), 3, info.ConsecutiveFailures)
+	require.True(s.T(), info.Quarantined)
+	require.NotZero(s.T(), info.QuarantinedAt)
+	require.NotZero(s.T(), info.QuarantineReleaseAt)
+}
+
+func (s *ReplicaConnectivityTrackerSuite) TestRecordSuccess() {
+	// Record some failures
+	s.tracker.RecordFailure(s.ctx, s.addr)
+	s.tracker.RecordFailure(s.ctx, s.addr)
+	info := s.tracker.Get(s.addr)
+	require.Equal(s.T(), 2, info.ConsecutiveFailures)
+
+	// Record success - should reset counter
+	s.tracker.RecordSuccess(s.ctx, s.addr)
+	info = s.tracker.Get(s.addr)
+	require.Zero(s.T(), info.ConsecutiveFailures)
+}
+
+func (s *ReplicaConnectivityTrackerSuite) TestRecordPoolEventFlapping() {
+	// Record events below threshold
+	for i := 0; i < flappingThreshold-1; i++ {
+		s.tracker.RecordPoolEvent(s.ctx, s.addr)
+	}
+	info := s.tracker.Get(s.addr)
+	require.NotNil(s.T(), info)
+	require.False(s.T(), info.Quarantined)
+	require.Len(s.T(), info.PoolEvents, flappingThreshold-1)
+
+	// Record one more event to trigger quarantine
+	s.tracker.RecordPoolEvent(s.ctx, s.addr)
+	info = s.tracker.Get(s.addr)
+	require.True(s.T(), info.Quarantined)
+	require.Len(s.T(), info.PoolEvents, flappingThreshold)
+}
+
+func (s *ReplicaConnectivityTrackerSuite) TestRecordPoolEventSlidingWindow() {
+	// Manually set old events outside the window
+	now := time.Now()
+	oldEvent := now.Add(-flappingWindowDuration - 10*time.Second)
+	s.tracker.connectivityInfo[s.addr] = &ReplicaConnectivityInfo{
+		Address:    s.addr,
+		PoolEvents: []time.Time{oldEvent, oldEvent, oldEvent},
+	}
+
+	// Record new event
+	s.tracker.RecordPoolEvent(s.ctx, s.addr)
+
+	// Old events should be removed, only new event remains
+	info := s.tracker.Get(s.addr)
+	require.Len(s.T(), info.PoolEvents, 1)
+	require.False(s.T(), info.Quarantined)
+}
+
+func (s *ReplicaConnectivityTrackerSuite) TestIsQuarantined() {
+	// Not quarantined initially
+	require.False(s.T(), s.tracker.IsQuarantined(s.ctx, s.addr))
+
+	// Quarantine the replica
+	s.tracker.RecordFailure(s.ctx, s.addr)
+	s.tracker.RecordFailure(s.ctx, s.addr)
+	s.tracker.RecordFailure(s.ctx, s.addr)
+	require.True(s.T(), s.tracker.IsQuarantined(s.ctx, s.addr))
+
+	// Manually set quarantine to expire in the past
+	s.tracker.connectivityInfo[s.addr].QuarantineReleaseAt = time.Now().Add(-1 * time.Second)
+
+	// Should auto-reintegrate when checked
+	require.False(s.T(), s.tracker.IsQuarantined(s.ctx, s.addr))
+	info := s.tracker.Get(s.addr)
+	require.False(s.T(), info.Quarantined)
+	require.Zero(s.T(), info.ConsecutiveFailures)
+	require.Empty(s.T(), info.PoolEvents)
+}
+
+func (s *ReplicaConnectivityTrackerSuite) TestGetCopy() {
+	// Add some pool events
+	s.tracker.RecordPoolEvent(s.ctx, s.addr)
+	s.tracker.RecordPoolEvent(s.ctx, s.addr)
+
+	// Get info and modify the copy
+	info := s.tracker.Get(s.addr)
+	require.Len(s.T(), info.PoolEvents, 2)
+
+	// Modify the copied slice
+	info.PoolEvents = append(info.PoolEvents, time.Now())
+
+	// Original should not be modified
+	info2 := s.tracker.Get(s.addr)
+	require.Len(s.T(), info2.PoolEvents, 2)
+}
+
+func TestDBLoadBalancer_Replica_ConnectivityQuarantine(t *testing.T) {
+	primaryDB, _, err := sqlmock.New()
+	require.NoError(t, err)
+	defer primaryDB.Close()
+
+	replicaDB1, _, err := sqlmock.New()
+	require.NoError(t, err)
+	defer replicaDB1.Close()
+
+	replicaDB2, _, err := sqlmock.New()
+	require.NoError(t, err)
+	defer replicaDB2.Close()
+
+	replica1 := &DB{DB: replicaDB1, DSN: &DSN{Host: "replica1", Port: 5432}}
+	replica2 := &DB{DB: replicaDB2, DSN: &DSN{Host: "replica2", Port: 5432}}
+
+	tracker := NewReplicaConnectivityTracker()
+	ctx := context.Background()
+
+	// Quarantine replica1 for connectivity
+	tracker.RecordFailure(ctx, replica1.Address())
+	tracker.RecordFailure(ctx, replica1.Address())
+	tracker.RecordFailure(ctx, replica1.Address())
+
+	lb := &DBLoadBalancer{
+		primary:             &DB{DB: primaryDB},
+		replicas:            []*DB{replica1, replica2},
+		connectivityTracker: tracker,
+	}
+
+	// Should skip quarantined replica1 and return replica2
+	selected := lb.Replica(ctx)
+	require.Equal(t, replica2, selected)
+}
+
+func TestDBLoadBalancer_Replica_BothQuarantineTypes(t *testing.T) {
+	primaryDB, _, err := sqlmock.New()
+	require.NoError(t, err)
+	defer primaryDB.Close()
+
+	replicaDB1, _, err := sqlmock.New()
+	require.NoError(t, err)
+	defer replicaDB1.Close()
+
+	replicaDB2, _, err := sqlmock.New()
+	require.NoError(t, err)
+	defer replicaDB2.Close()
+
+	replica1 := &DB{DB: replicaDB1, DSN: &DSN{Host: "replica1", Port: 5432}}
+	replica2 := &DB{DB: replicaDB2, DSN: &DSN{Host: "replica2", Port: 5432}}
+
+	connectivityTracker := NewReplicaConnectivityTracker()
+	lagTracker := &mockLagTracker{
+		lagInfo: map[string]*ReplicaLagInfo{
+			replica1.Address(): {Quarantined: true}, // Quarantined for lag
+		},
+	}
+
+	ctx := context.Background()
+
+	// Quarantine replica2 for connectivity
+	connectivityTracker.RecordFailure(ctx, replica2.Address())
+	connectivityTracker.RecordFailure(ctx, replica2.Address())
+	connectivityTracker.RecordFailure(ctx, replica2.Address())
+
+	lb := &DBLoadBalancer{
+		primary:             &DB{DB: primaryDB},
+		replicas:            []*DB{replica1, replica2},
+		lagTracker:          lagTracker,
+		connectivityTracker: connectivityTracker,
+	}
+
+	// Both replicas quarantined, should fall back to primary
+	selected := lb.Replica(ctx)
+	require.Equal(t, lb.primary, selected)
+}
+
+func TestDBLoadBalancer_ResolveReplicas_SkipsQuarantinedReplicas(t *testing.T) {
+	ctx := context.Background()
+
+	// Create primary DB
+	primaryDB, _, err := sqlmock.New()
+	require.NoError(t, err)
+	defer primaryDB.Close()
+
+	// Create replica DBs for mocking
+	replica1DB, _, err := sqlmock.New()
+	require.NoError(t, err)
+	defer replica1DB.Close()
+
+	replica2DB, _, err := sqlmock.New()
+	require.NoError(t, err)
+	defer replica2DB.Close()
+
+	// Set up flapping tracker with replica1 quarantined
+	connectivityTracker := NewReplicaConnectivityTracker()
+	connectivityTracker.RecordFailure(ctx, "replica1:5432")
+	connectivityTracker.RecordFailure(ctx, "replica1:5432")
+	connectivityTracker.RecordFailure(ctx, "replica1:5432") // Quarantine after 3 failures
+
+	// Verify replica1 is quarantined
+	require.True(t, connectivityTracker.IsQuarantined(ctx, "replica1:5432"))
+	require.False(t, connectivityTracker.IsQuarantined(ctx, "replica2:5432"))
+
+	// Create stub connector that returns our mock DBs
+	connector := &stubConnector{
+		openFunc: func(_ context.Context, dsn *DSN, _ ...Option) (*DB, error) {
+			addr := dsn.Address()
+			if addr == "replica1:5432" {
+				return &DB{DB: replica1DB, DSN: dsn}, nil
+			}
+			if addr == "replica2:5432" {
+				return &DB{DB: replica2DB, DSN: dsn}, nil
+			}
+			return nil, fmt.Errorf("unknown host: %s", addr)
+		},
+	}
+
+	lb := &DBLoadBalancer{
+		primary:             &DB{DB: primaryDB, DSN: &DSN{Host: "primary", Port: 5432, DBName: "testdb"}},
+		primaryDSN:          &DSN{Host: "primary", Port: 5432, DBName: "testdb"},
+		connector:           connector,
+		fixedHosts:          []string{"replica1", "replica2"},
+		connectivityTracker: connectivityTracker,
+	}
+
+	// Resolve replicas
+	err = lb.ResolveReplicas(ctx)
+	require.NoError(t, err)
+
+	// Verify only replica2 was added (replica1 should be skipped because it's quarantined)
+	require.Len(t, lb.replicas, 1)
+	require.Equal(t, "replica2:5432", lb.replicas[0].Address())
+}
+
+func TestDBLoadBalancer_ResolveReplicas_RecordsPoolEvents(t *testing.T) {
+	ctx := context.Background()
+
+	// Create primary DB
+	primaryDB, _, err := sqlmock.New()
+	require.NoError(t, err)
+	defer primaryDB.Close()
+
+	// Create replica DBs
+	replica1DB, replica1Mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer replica1DB.Close()
+
+	replica2DB, _, err := sqlmock.New()
+	require.NoError(t, err)
+	defer replica2DB.Close()
+
+	connectivityTracker := NewReplicaConnectivityTracker()
+
+	// Create stub connector
+	connector := &stubConnector{
+		openFunc: func(_ context.Context, dsn *DSN, _ ...Option) (*DB, error) {
+			addr := dsn.Address()
+			if addr == "replica1:5432" {
+				return &DB{DB: replica1DB, DSN: dsn}, nil
+			}
+			if addr == "replica2:5432" {
+				return &DB{DB: replica2DB, DSN: dsn}, nil
+			}
+			return nil, fmt.Errorf("unknown host: %s", addr)
+		},
+	}
+
+	lb := &DBLoadBalancer{
+		primary:             &DB{DB: primaryDB, DSN: &DSN{Host: "primary", Port: 5432, DBName: "testdb"}},
+		primaryDSN:          &DSN{Host: "primary", Port: 5432, DBName: "testdb"},
+		connector:           connector,
+		fixedHosts:          []string{"replica1"},
+		connectivityTracker: connectivityTracker,
+	}
+
+	// First resolution - add replica1
+	err = lb.ResolveReplicas(ctx)
+	require.NoError(t, err)
+	require.Len(t, lb.replicas, 1)
+
+	// Verify pool event was recorded for replica1 addition
+	info1 := connectivityTracker.Get("replica1:5432")
+	require.NotNil(t, info1)
+	require.Len(t, info1.PoolEvents, 1)
+
+	// Now add replica2 to the fixed hosts
+	lb.fixedHosts = []string{"replica1", "replica2"}
+
+	// Second resolution - add replica2
+	err = lb.ResolveReplicas(ctx)
+	require.NoError(t, err)
+	require.Len(t, lb.replicas, 2)
+
+	// Verify pool event was recorded for replica2 addition
+	info2 := connectivityTracker.Get("replica2:5432")
+	require.NotNil(t, info2)
+	require.Len(t, info2.PoolEvents, 1)
+
+	// Replica1 should still have only 1 event (no new event on second resolution)
+	info1Updated := connectivityTracker.Get("replica1:5432")
+	require.Len(t, info1Updated.PoolEvents, 1)
+
+	// Now remove replica1 from fixed hosts
+	lb.fixedHosts = []string{"replica2"}
+
+	// Expect Close() call when replica1 is removed from the pool
+	replica1Mock.ExpectClose()
+
+	// Third resolution - remove replica1
+	err = lb.ResolveReplicas(ctx)
+	require.NoError(t, err)
+	require.Len(t, lb.replicas, 1)
+	require.Equal(t, "replica2:5432", lb.replicas[0].Address())
+
+	// Verify removal event was recorded for replica1
+	info1Final := connectivityTracker.Get("replica1:5432")
+	require.NotNil(t, info1Final)
+	require.Len(t, info1Final.PoolEvents, 2) // Add + Remove events
+}
+
+// stubConnector is a test implementation of the Connector interface
+type stubConnector struct {
+	openFunc func(ctx context.Context, dsn *DSN, opts ...Option) (*DB, error)
+}
+
+func (c *stubConnector) Open(ctx context.Context, dsn *DSN, opts ...Option) (*DB, error) {
+	if c.openFunc != nil {
+		return c.openFunc(ctx, dsn, opts...)
+	}
+	return nil, fmt.Errorf("stubConnector.openFunc not set")
+}
+
+func TestDBLoadBalancer_ResolveReplicas_ConsecutiveFailures_NewReplica(t *testing.T) {
+	ctx := context.Background()
+
+	// Create primary DB
+	primaryDB, _, err := sqlmock.New()
+	require.NoError(t, err)
+	defer primaryDB.Close()
+
+	connectivityTracker := NewReplicaConnectivityTracker()
+
+	// Create a connector that always fails
+	connector := &stubConnector{
+		openFunc: func(_ context.Context, _ *DSN, _ ...Option) (*DB, error) {
+			return nil, fmt.Errorf("connection failed")
+		},
+	}
+
+	lb := &DBLoadBalancer{
+		primary:             &DB{DB: primaryDB, DSN: &DSN{Host: "primary", Port: 5432, DBName: "testdb"}},
+		primaryDSN:          &DSN{Host: "primary", Port: 5432, DBName: "testdb"},
+		connector:           connector,
+		fixedHosts:          []string{"replica1"},
+		connectivityTracker: connectivityTracker,
+	}
+
+	// Attempt to resolve replicas 3 times
+	for i := 0; i < 3; i++ {
+		err := lb.ResolveReplicas(ctx)
+		require.Error(t, err) // Should fail each time
+	}
+
+	// Verify replica was quarantined after 3 consecutive failures
+	require.True(t, connectivityTracker.IsQuarantined(ctx, "replica1:5432"))
+
+	info := connectivityTracker.Get("replica1:5432")
+	require.NotNil(t, info)
+	require.Equal(t, 3, info.ConsecutiveFailures)
+	require.True(t, info.Quarantined)
+
+	// Verify replica is skipped on next resolution
+	err = lb.ResolveReplicas(ctx)
+	require.NoError(t, err) // Should succeed because replica is skipped
+	require.Empty(t, lb.replicas)
+}
+
+func TestDBLoadBalancer_ResolveReplicas_ConsecutiveFailures_Reconnection(t *testing.T) {
+	ctx := context.Background()
+
+	// Create primary DB
+	primaryDB, _, err := sqlmock.New()
+	require.NoError(t, err)
+	defer primaryDB.Close()
+
+	// Create replica DB that will fail ping
+	replicaDB, replicaMock, err := sqlmock.New(sqlmock.MonitorPingsOption(true))
+	require.NoError(t, err)
+	defer replicaDB.Close()
+
+	connectivityTracker := NewReplicaConnectivityTracker()
+
+	callCount := 0
+	connector := &stubConnector{
+		openFunc: func(_ context.Context, dsn *DSN, _ ...Option) (*DB, error) {
+			callCount++
+			if callCount == 1 {
+				// First call succeeds
+				return &DB{DB: replicaDB, DSN: dsn}, nil
+			}
+			// Subsequent calls fail (reconnection attempts)
+			return nil, fmt.Errorf("reconnection failed")
+		},
+	}
+
+	lb := &DBLoadBalancer{
+		primary:             &DB{DB: primaryDB, DSN: &DSN{Host: "primary", Port: 5432, DBName: "testdb"}},
+		primaryDSN:          &DSN{Host: "primary", Port: 5432, DBName: "testdb"},
+		connector:           connector,
+		fixedHosts:          []string{"replica1"},
+		connectivityTracker: connectivityTracker,
+	}
+
+	// First resolution - succeeds
+	err = lb.ResolveReplicas(ctx)
+	require.NoError(t, err)
+	require.Len(t, lb.replicas, 1)
+
+	// Verify no failures recorded yet
+	info := connectivityTracker.Get("replica1:5432")
+	require.NotNil(t, info)
+	require.Equal(t, 0, info.ConsecutiveFailures)
+
+	// Now make the replica fail ping 3 times
+	for i := 0; i < 3; i++ {
+		replicaMock.ExpectPing().WillReturnError(fmt.Errorf("ping failed"))
+		err = lb.ResolveReplicas(ctx)
+		require.Error(t, err) // Should fail each time
+	}
+
+	// Verify replica was quarantined after 3 consecutive reconnection failures
+	require.True(t, connectivityTracker.IsQuarantined(ctx, "replica1:5432"))
+
+	info = connectivityTracker.Get("replica1:5432")
+	require.NotNil(t, info)
+	require.Equal(t, 3, info.ConsecutiveFailures)
+	require.True(t, info.Quarantined)
+}
+
+func TestDBLoadBalancer_ResolveReplicas_ConsecutiveFailures_SuccessResetsCounter(t *testing.T) {
+	ctx := context.Background()
+
+	// Create primary DB
+	primaryDB, _, err := sqlmock.New()
+	require.NoError(t, err)
+	defer primaryDB.Close()
+
+	// Create replica DB
+	replicaDB, replicaMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer replicaDB.Close()
+
+	connectivityTracker := NewReplicaConnectivityTracker()
+
+	callCount := 0
+	connector := &stubConnector{
+		openFunc: func(_ context.Context, dsn *DSN, _ ...Option) (*DB, error) {
+			callCount++
+			if callCount <= 2 {
+				// First 2 calls fail
+				return nil, fmt.Errorf("connection failed")
+			}
+			// Third call succeeds
+			return &DB{DB: replicaDB, DSN: dsn}, nil
+		},
+	}
+
+	lb := &DBLoadBalancer{
+		primary:             &DB{DB: primaryDB, DSN: &DSN{Host: "primary", Port: 5432, DBName: "testdb"}},
+		primaryDSN:          &DSN{Host: "primary", Port: 5432, DBName: "testdb"},
+		connector:           connector,
+		fixedHosts:          []string{"replica1"},
+		connectivityTracker: connectivityTracker,
+	}
+
+	// Fail twice
+	for i := 0; i < 2; i++ {
+		err := lb.ResolveReplicas(ctx)
+		require.Error(t, err)
+	}
+
+	// Verify 2 consecutive failures recorded
+	info := connectivityTracker.Get("replica1:5432")
+	require.NotNil(t, info)
+	require.Equal(t, 2, info.ConsecutiveFailures)
+	require.False(t, info.Quarantined) // Not quarantined yet
+
+	// Third attempt succeeds
+	replicaMock.ExpectClose() // Expect close for cleanup
+	err = lb.ResolveReplicas(ctx)
+	require.NoError(t, err)
+	require.Len(t, lb.replicas, 1)
+
+	// Verify failure counter was reset
+	info = connectivityTracker.Get("replica1:5432")
+	require.NotNil(t, info)
+	require.Zero(t, info.ConsecutiveFailures)
+	require.False(t, info.Quarantined)
+}
+
+func TestDBLoadBalancer_ResolveReplicas_ConsecutiveFailures_HealthyResetsCounter(t *testing.T) {
+	ctx := context.Background()
+
+	// Create primary DB
+	primaryDB, _, err := sqlmock.New()
+	require.NoError(t, err)
+	defer primaryDB.Close()
+
+	// Create replica DB
+	replicaDB, replicaMock, err := sqlmock.New(sqlmock.MonitorPingsOption(true))
+	require.NoError(t, err)
+	defer replicaDB.Close()
+
+	connectivityTracker := NewReplicaConnectivityTracker()
+
+	// Manually set consecutive failures
+	connectivityTracker.RecordFailure(ctx, "replica1:5432")
+	connectivityTracker.RecordFailure(ctx, "replica1:5432")
+
+	// Verify 2 failures recorded
+	info := connectivityTracker.Get("replica1:5432")
+	require.NotNil(t, info)
+	require.Equal(t, 2, info.ConsecutiveFailures)
+
+	connector := &stubConnector{
+		openFunc: func(_ context.Context, dsn *DSN, _ ...Option) (*DB, error) {
+			return &DB{DB: replicaDB, DSN: dsn}, nil
+		},
+	}
+
+	lb := &DBLoadBalancer{
+		primary:             &DB{DB: primaryDB, DSN: &DSN{Host: "primary", Port: 5432, DBName: "testdb"}},
+		primaryDSN:          &DSN{Host: "primary", Port: 5432, DBName: "testdb"},
+		connector:           connector,
+		fixedHosts:          []string{"replica1"},
+		connectivityTracker: connectivityTracker,
+	}
+
+	// First resolution - succeeds
+	replicaMock.ExpectClose() // Expect close for cleanup
+	err = lb.ResolveReplicas(ctx)
+	require.NoError(t, err)
+	require.Len(t, lb.replicas, 1)
+
+	// Verify failure counter was reset by successful connection
+	info = connectivityTracker.Get("replica1:5432")
+	require.NotNil(t, info)
+	require.Equal(t, 0, info.ConsecutiveFailures)
+
+	// Second resolution - replica is healthy, should also record success
+	replicaMock.ExpectPing() // Healthy ping
+	err = lb.ResolveReplicas(ctx)
+	require.NoError(t, err)
+	require.Len(t, lb.replicas, 1)
+
+	// Verify counter is still 0
+	info = connectivityTracker.Get("replica1:5432")
+	require.NotNil(t, info)
+	require.Equal(t, 0, info.ConsecutiveFailures)
 }
