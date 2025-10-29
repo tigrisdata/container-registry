@@ -184,7 +184,7 @@ func (c *BBMProgressCollector) run(ctx context.Context) {
 }
 
 func (c *BBMProgressCollector) collect(ctx context.Context) {
-	defer InstrumentQuery("bbm_collect_progress")
+	defer InstrumentQuery("bbm_collect_progress")()
 	// Use a single SQL query to get progress inputs per migration
 	// status values are stored as ints in the DB; models.BackgroundMigrationFinished indicates finished status
 	q := `SELECT
@@ -253,7 +253,7 @@ func (c *BBMProgressCollector) collect(ctx context.Context) {
 			"capped":            capped,
 			"migration_id":      id,
 			"migration_name":    name,
-			"status":            status,
+			"bbm_status":        status,
 			"batch_size":        batchSize,
 			"finished_jobs":     finishedJobs,
 			"total_tuple_count": total.Int64,

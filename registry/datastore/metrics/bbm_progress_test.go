@@ -79,6 +79,7 @@ func TestNewBBMProgressCollector_DefaultsAndOptions(t *testing.T) {
 }
 
 func TestBBMProgressCollector_Collect_ComputesProgress(t *testing.T) {
+	resetQueryCollector(t)
 	// fresh registry to isolate metric
 	reg := prometheus.NewRegistry()
 	reg.MustRegister(bbmProgressGauge)
@@ -127,6 +128,7 @@ func TestBBMProgressCollector_Collect_ComputesProgress(t *testing.T) {
 }
 
 func TestBBMProgressCollector_StartStop_WithLock(t *testing.T) {
+	resetQueryCollector(t)
 	mr, client := newMiniRedisClient(t)
 	defer mr.Close()
 
@@ -157,6 +159,7 @@ func TestBBMProgressCollector_StartStop_WithLock(t *testing.T) {
 }
 
 func TestBBMProgressCollector_LeaderExclusivity(t *testing.T) {
+	resetQueryCollector(t)
 	mr, client := newMiniRedisClient(t)
 	defer mr.Close()
 
@@ -193,4 +196,12 @@ func TestBBMProgressCollector_LeaderExclusivity(t *testing.T) {
 
 	require.GreaterOrEqual(t, calls1, 1)
 	require.Equal(t, 0, calls2)
+}
+
+// resetQueryCollector cleans up query metrics after test to prevent pollution.
+func resetQueryCollector(t *testing.T) {
+	t.Cleanup(func() {
+		queryTotal.Reset()
+		queryDurationHist.Reset()
+	})
 }
