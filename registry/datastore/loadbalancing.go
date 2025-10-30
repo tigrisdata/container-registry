@@ -842,6 +842,8 @@ func (lb *DBLoadBalancer) Replica(ctx context.Context) *DB {
 
 // Replicas returns all replica database handlers currently in the pool.
 func (lb *DBLoadBalancer) Replicas() []*DB {
+	lb.replicaMutex.Lock()
+	defer lb.replicaMutex.Unlock()
 	return lb.replicas
 }
 
