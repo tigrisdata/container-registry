@@ -827,8 +827,8 @@ gitlab.com/gitlab-org/api/client-go v0.156.0 h1:dHgFtA9Z28Oz6veBYR09SQ7eT3qof9Zs
 gitlab.com/gitlab-org/api/client-go v0.156.0/go.mod h1:CQVoxjEswJZeXft4Mi+H+OF1MVrpNVF6m4xvlPTQ2J4=
 gitlab.com/gitlab-org/go/reopen v1.0.0 h1:6BujZ0lkkjGIejTUJdNO1w56mN1SI10qcVQyQlOPM+8=
 gitlab.com/gitlab-org/go/reopen v1.0.0/go.mod h1:D6OID8YJDzEVZNYW02R/Pkj0v8gYFSIhXFTArAsBQw8=
-gitlab.com/gitlab-org/labkit v1.31.2 h1:uot1m2vh7DT+JCq2LFUYIP6hk0qw9Ebw2eZKLk8BYqI=
-gitlab.com/gitlab-org/labkit v1.31.2/go.mod h1:JqQLdgjV/KKAZJ6gvNodaLStmWeTT9mxgJPIEi66VHI=
+gitlab.com/gitlab-org/labkit v1.31.5 h1:maV2uGaoXev+sDoQAiRsMYeFMrfTPJ2pVcFczo+DOkA=
+gitlab.com/gitlab-org/labkit v1.31.5/go.mod h1:JqQLdgjV/KKAZJ6gvNodaLStmWeTT9mxgJPIEi66VHI=
 go.etcd.io/bbolt v1.3.3/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
 go.etcd.io/etcd v0.0.0-20191023171146-3cf2f69b5738/go.mod h1:dnLIgRNXwCJa5e+c6mIZCrds/GIG4ncV9HhK5PX7jPg=
 go.opencensus.io v0.20.1/go.mod h1:6WKK9ahsWS3RSO+PY9ZHZUfv2irvY6gN279GOPZjmmk=
