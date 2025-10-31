@@ -74,6 +74,7 @@ type Importer struct {
 	testingDelay            time.Duration
 	preImportRetryTimeout   time.Duration
 	preImportSkipCuttoff    time.Time
+	logDir                  string
 }
 
 // ImporterOption provides functional options for the Importer.
@@ -152,6 +153,14 @@ func WithImportStatsTracking(driverName string) ImporterOption {
 func WithPreImportSkipRecent(d time.Duration) ImporterOption {
 	return func(imp *Importer) {
 		imp.preImportSkipCuttoff = time.Now().Add(-d)
+	}
+}
+
+// WithLogDir configures the Importer to write logs to the provided directory.
+// By default, logs are written to the local directory.
+func WithLogDir(d string) ImporterOption {
+	return func(imp *Importer) {
+		imp.logDir = d
 	}
 }
 
@@ -1133,23 +1142,29 @@ func (imp *Importer) doImport(ctx context.Context, required step, steps ...step)
 	commonBarOptions = append(commonBarOptions, progressbar.OptionSetVisibility(imp.showProgressBar))
 
 	if imp.showProgressBar {
-		fn := fmt.Sprintf("%s-registry-import.log", time.Now().Format(time.RFC3339))
-		// nolint: gosec // G304
-		f, err = os.OpenFile(fn, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
-		if err != nil {
-			return fmt.Errorf("opening log file: %w", err)
+		if imp.logDir == "" {
+			wd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("getting working directory: %w", err)
+			}
+
+			imp.logDir = wd
 		}
 
-		wd, err := os.Getwd()
+		fn := fmt.Sprintf("%s-registry-import.log", time.Now().Format(time.RFC3339))
+		logFile := filepath.Clean(filepath.Join(imp.logDir, fn))
+
+		// nolint: gosec // G304
+		f, err = os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 		if err != nil {
-			return fmt.Errorf("getting working directory: %w", err)
+			return fmt.Errorf("opening log file: %w", err)
 		}
 
 		// A little hacky, but we can use a progress bar to show the overall import
 		// progress by printing the bar with different descriptions. Otherwise, the
 		// progress bars and a regular logger would step over one another.
 		_ = bar.Add(1) // Give the bar some state so we can print it.
-		imp.printBar(bar, fmt.Sprintf("registry import starting, detailed log written to: %s", filepath.Join(wd, fn)))
+		imp.printBar(bar, fmt.Sprintf("registry import starting, detailed log written to: %s", logFile))
 	} else {
 		f = os.Stdout
 	}
