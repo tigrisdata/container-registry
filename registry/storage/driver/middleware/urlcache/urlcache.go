@@ -54,10 +54,10 @@ func (ce CacheEntry) size() int64 {
 // defaultMinURLValidity is the minimum time a URL must be valid before we serve it from cache
 const defaultMinURLValidity = 10 * time.Minute
 
-// newURLCacheStorageMiddleware constructs and returns a new URL cache driver.StorageDriver implementation.
+// NewURLCacheStorageMiddleware constructs and returns a new URL cache driver.StorageDriver implementation.
 // Required options: none (all options are optional with sensible defaults)
 // Optional options: minurlvalidity, defaulturlvalidity, maxcacheentries
-func newURLCacheStorageMiddleware(
+func NewURLCacheStorageMiddleware(
 	storageDriver driver.StorageDriver,
 	options map[string]any,
 ) (driver.StorageDriver, func() error, error) {
@@ -180,6 +180,18 @@ func (*urlCacheStorageMiddleware) logger(ctx context.Context) log.Logger {
 	})
 }
 
+func (uc *urlCacheStorageMiddleware) FetchGCSBucketKeyer() (storagemiddleware.GcsBucketKeyer, bool) {
+	keyerFetcher, ok := uc.StorageDriver.(storagemiddleware.GcsBucketKeyerFetcher)
+	if !ok {
+		return nil, false
+	}
+	keyer, ok := keyerFetcher.FetchGCSBucketKeyer()
+	if !ok {
+		return nil, false
+	}
+	return keyer, true
+}
+
 // URLFor returns a URL which may be used to retrieve the content stored at the given path, possibly using the given
 // options. This implementation adds caching to reduce redundant URLFor calls.
 func (uc *urlCacheStorageMiddleware) URLFor(ctx context.Context, path string, options map[string]any) (string, error) {
@@ -271,5 +283,5 @@ func (uc *urlCacheStorageMiddleware) URLFor(ctx context.Context, path string, op
 
 func init() {
 	// nolint: gosec // ignore when backend is already registered
-	_ = storagemiddleware.Register("urlcache", newURLCacheStorageMiddleware)
+	_ = storagemiddleware.Register("urlcache", NewURLCacheStorageMiddleware)
 }

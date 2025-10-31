@@ -43,3 +43,14 @@ func Get(name string, options map[string]any, storageDriver storagedriver.Storag
 func Clear() {
 	storageMiddlewares = nil
 }
+
+// GcsBucketKeyer is any type that is capable of returning the GCS bucket key which should be cached by Google CDN.
+type GcsBucketKeyer interface {
+	GCSBucketKey(path string) string
+}
+
+// GcsBucketKeyerFetcher is any type that is capable of returning the object
+// fulfilling the GcsBucketKeyer interface
+type GcsBucketKeyerFetcher interface {
+	FetchGCSBucketKeyer() (GcsBucketKeyer, bool)
+}
