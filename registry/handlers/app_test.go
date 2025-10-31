@@ -982,6 +982,12 @@ func TestNewApp_Locks_Errors(t *testing.T) {
 			databaseEnabled: configuration.DatabaseEnabledTrue,
 			expectedError:   ErrFilesystemInUse,
 		},
+		"filesystem in use prefer mode": {
+			rootdir: "../datastore/testdata/fixtures/importer/happy-path",
+			// preferring the database when filesystem-in-use exists should not error out
+			databaseEnabled: configuration.DatabaseEnabledPrefer,
+			expectedError:   nil,
+		},
 		// we cannot test the scenario where the FF is disabled
 		// because it requires proper DB configuration and restoring of lockfiles
 		// this is meant to be a unit test rather than an integration test, so
@@ -994,13 +1000,14 @@ func TestNewApp_Locks_Errors(t *testing.T) {
 				"rootdirectory": tc.rootdir,
 			}
 			config.Database.Enabled = tc.databaseEnabled
+			config.Database.PreferFallback = false // Reset fallback state between tests.
 
 			// Temporary use of FF while other tests are updated and fixed
 			// see https://gitlab.com/gitlab-org/container-registry/-/issues/1335
 			tt.Setenv(feature.EnforceLockfiles.EnvVariable, "true")
 
 			_, err := NewApp(ctx, config)
-			require.ErrorIs(tt, err, tc.expectedError)
+			assert.ErrorIs(tt, err, tc.expectedError)
 		})
 	}
 }
