@@ -507,11 +507,15 @@ type Database struct {
 	LoadBalancing DatabaseLoadBalancing `yaml:"loadbalancing,omitempty"`
 	// Metrics configures database metrics collection
 	Metrics DatabaseMetrics `yaml:"metrics,omitempty"`
+
+	// PreferFallback is used to track if we've fallen back to the filesystem
+	// in prefer mode.
+	PreferFallback bool
 }
 
 // IsEnabled returns true if the database is in prefer mode or explicitly enabled.
 func (d Database) IsEnabled() bool {
-	return d.Enabled != DatabaseEnabledFalse
+	return d.Enabled != DatabaseEnabledFalse && !d.PreferFallback
 }
 
 func (d Database) IsPrefer() bool {
