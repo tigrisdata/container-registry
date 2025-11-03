@@ -925,6 +925,39 @@ func TestBackgroundMigrationStore_GetPendingWALCount(t *testing.T) {
 	require.Equal(t, -1, count)
 }
 
+func TestBackgroundMigrationStore_HasNullIndex(t *testing.T) {
+	// Create a temporary table in the default schema (no schema prefix in identifier)
+	_, err := suite.db.Exec(`CREATE TABLE IF NOT EXISTS tmp_nullidx_test (id INT PRIMARY KEY, val INT NULL)`)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, _ = suite.db.Exec(`DROP TABLE IF EXISTS tmp_nulltest`)
+	})
+
+	s := datastore.NewBackgroundMigrationStore(suite.db)
+
+	// Expect false when no suitable index exists
+	hasNullIdx, err := s.HasNullIndex(suite.ctx, "tmp_nullidx_test", "val")
+	require.NoError(t, err)
+	require.False(t, hasNullIdx)
+
+	// Create index that is not suitable for null batching
+	_, err = suite.db.Exec(`CREATE INDEX idx_bad ON tmp_nullidx_test (val) where id > 10`)
+	require.NoError(t, err)
+
+	// Still expect false
+	hasNullIdx, err = s.HasNullIndex(suite.ctx, "tmp_nullidx_test", "val")
+	require.NoError(t, err)
+	require.False(t, hasNullIdx)
+
+	// Create index that is suitable for null batching
+	_, err = suite.db.Exec(`CREATE INDEX idx_good ON tmp_nullidx_test (val) where val is null`)
+	require.NoError(t, err)
+
+	hasNullIdx, err = s.HasNullIndex(suite.ctx, "tmp_nullidx_test", "val")
+	require.NoError(t, err)
+	require.True(t, hasNullIdx)
+}
+
 func TestBackgroundMigrationStore_HasNullValues_SimpleTable(t *testing.T) {
 	// Create a temporary table in the default schema (no schema prefix in identifier)
 	_, err := suite.db.Exec(`CREATE TABLE IF NOT EXISTS tmp_nulltest (id INT PRIMARY KEY, val INT NULL)`)

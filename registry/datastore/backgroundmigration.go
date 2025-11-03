@@ -78,6 +78,8 @@ type BackgroundMigrationStore interface {
 	GetPendingWALCount(ctx context.Context) (int, error)
 	// HasNullValues returns true if a table's column contains NULL values
 	HasNullValues(ctx context.Context, table, column string) (bool, error)
+	// HasNullIndex returns true if a table's column is covered by partial NULL index
+	HasNullIndex(ctx context.Context, table, column string) (bool, error)
 	// SetTotalTupleCount sets the estimated total tuple count for a background migration
 	SetTotalTupleCount(ctx context.Context, id int, total int64) error
 	// EstimateTotalTupleCount estimates total tuples to process for a BBM using reltuples and pg_stats
@@ -706,6 +708,56 @@ func (bms *backgroundMigrationStore) HasNullValues(ctx context.Context, table, c
 	var exists bool
 	if err := bms.db.QueryRowContext(ctx, query).Scan(&exists); err != nil {
 		return false, fmt.Errorf("failed to check for null values in %s.%s: %w", table, column, err)
+	}
+	return exists, nil
+}
+
+// HasNullIndex checks if there is a NULL index for the given table and
+// column. The Column for NullBatchingStrategy must be indexed. Without an
+// index on the column being checked, queries could scan the entire table until
+// it finds the first NULL value leading to downtime.
+func (bms *backgroundMigrationStore) HasNullIndex(ctx context.Context, table, column string) (bool, error) {
+	// Parse optional schema-qualified table name
+	var schemaName, tableName string
+	parts := strings.Split(table, ".")
+	if len(parts) == 2 {
+		schemaName, tableName = parts[0], parts[1]
+	} else {
+		schemaName, tableName = "public", table
+	}
+
+	defer metrics.InstrumentQuery("bbm_has_null_index")()
+
+	query := `
+SELECT
+    EXISTS (
+        SELECT
+            1
+        FROM
+            pg_index i
+            JOIN pg_class c ON c.oid = i.indexrelid
+            JOIN pg_class t ON t.oid = i.indrelid
+            JOIN pg_namespace n ON n.oid = t.relnamespace
+        WHERE
+            i.indpred IS NOT NULL
+            AND n.nspname = $1
+            AND t.relname = $2
+            AND EXISTS (
+                SELECT
+                    1
+                FROM
+                    pg_attribute a
+                WHERE
+                    a.attrelid = t.oid
+                    AND a.attnum = ANY (i.indkey)
+                    AND a.attname = $3)
+            AND pg_get_expr(i.indpred, i.indrelid) ~* ('^\(?\s*' || regexp_replace($3, '([.*+?^${}()|[\]\\])', '\\\1', 'g') || '\s+IS\s+NULL\s*\)?$')
+	)
+`
+
+	var exists bool
+	if err := bms.db.QueryRowContext(ctx, query, schemaName, tableName, column).Scan(&exists); err != nil {
+		return false, fmt.Errorf("failed to check for null index in %s.%s: %w", table, column, err)
 	}
 	return exists, nil
 }

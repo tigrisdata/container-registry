@@ -280,6 +280,21 @@ func (mr *MockBackgroundMigrationStoreMockRecorder) GetPendingWALCount(ctx any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPendingWALCount", reflect.TypeOf((*MockBackgroundMigrationStore)(nil).GetPendingWALCount), ctx)
 }
 
+// HasNullIndex mocks base method.
+func (m *MockBackgroundMigrationStore) HasNullIndex(ctx context.Context, table, column string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HasNullIndex", ctx, table, column)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// HasNullIndex indicates an expected call of HasNullIndex.
+func (mr *MockBackgroundMigrationStoreMockRecorder) HasNullIndex(ctx, table, column any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasNullIndex", reflect.TypeOf((*MockBackgroundMigrationStore)(nil).HasNullIndex), ctx, table, column)
+}
+
 // HasNullValues mocks base method.
 func (m *MockBackgroundMigrationStore) HasNullValues(ctx context.Context, table, column string) (bool, error) {
 	m.ctrl.T.Helper()

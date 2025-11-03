@@ -466,6 +466,7 @@ func TestSyncWorker_FindJob(t *testing.T) {
 				gomock.InOrder(
 					bbmStoreMock.EXPECT().FindNextByStatus(ctx, models.BackgroundMigrationFailed).Return(nil, nil).Times(1),
 					bbmStoreMock.EXPECT().FindNext(ctx).Return(nb, nil).Times(1),
+					bbmStoreMock.EXPECT().HasNullIndex(ctx, nb.TargetTable, nb.TargetColumn).Return(true, nil).Times(1),
 					bbmStoreMock.EXPECT().HasNullValues(ctx, nb.TargetTable, nb.TargetColumn).Return(true, nil).Times(1),
 					bbmStoreMock.EXPECT().FindLastJob(ctx, nb).Return(nil, nil).Times(1),
 					bbmStoreMock.EXPECT().EstimateTotalTupleCount(ctx, nb).Return(int64(500), nil).Times(1),
@@ -503,6 +504,7 @@ func TestSyncWorker_FindJob(t *testing.T) {
 				gomock.InOrder(
 					bbmStoreMock.EXPECT().FindNextByStatus(ctx, models.BackgroundMigrationFailed).Return(nil, nil).Times(1),
 					bbmStoreMock.EXPECT().FindNext(ctx).Return(nb, nil).Times(1),
+					bbmStoreMock.EXPECT().HasNullIndex(ctx, nb.TargetTable, nb.TargetColumn).Return(true, nil).Times(1),
 					bbmStoreMock.EXPECT().HasNullValues(ctx, nb.TargetTable, nb.TargetColumn).Return(false, nil).Times(1),
 					bbmStoreMock.EXPECT().UpdateStatus(ctx, gomock.Any()).Return(nil).Times(1),
 					// Loop continues and finds nothing left to do
