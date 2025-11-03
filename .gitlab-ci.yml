@@ -6,7 +6,7 @@ include:
   - local: .gitlab/ci/release_prepare.yml
   - local: .gitlab/ci/release_tag.yml
   - local: .gitlab/ci/document.yml
-  - local: .gitlab/ci/child_jobs.yml
+  - local: .gitlab/ci/aux_jobs.yml
   - local: .gitlab/ci/migrate.yml
   - component: ${CI_SERVER_FQDN}/gitlab-org/components/danger-review/danger-review@2.1.0
     inputs:
@@ -54,8 +54,8 @@ stages:
   - test
   - integration
   - migrate
+  - aux jobs
   - release
-  - child jobs
   - document
 
 .go-pg-version-matrix:
