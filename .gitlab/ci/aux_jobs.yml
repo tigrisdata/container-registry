@@ -1,13 +1,5 @@
-trigger release:
-  stage: child jobs
-  trigger:
-    include:
-      - local: .gitlab/ci/release-trigger.yml
-  rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-
 trigger ci tool:
-  stage: child jobs
+  stage: aux jobs
   trigger:
     include:
       - local: .gitlab/ci/ci_tool.yml
@@ -16,7 +8,7 @@ trigger ci tool:
       when: always
 
 trigger sissue tool:
-  stage: child jobs
+  stage: aux jobs
   trigger:
     include:
       - local: .gitlab/ci/sissue_tool.yml
