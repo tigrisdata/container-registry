@@ -988,6 +988,24 @@ func TestNewApp_Locks_Errors(t *testing.T) {
 			databaseEnabled: configuration.DatabaseEnabledPrefer,
 			expectedError:   nil,
 		},
+		"invalid lockfiles db enabled": {
+			rootdir: "../datastore/testdata/fixtures/importer/invalid-lockfiles",
+			// preferring the database when filesystem-in-use exists should not error out
+			databaseEnabled: configuration.DatabaseEnabledTrue,
+			expectedError:   ErrInvalidLockfiles,
+		},
+		"invalid lockfiles db disabled": {
+			rootdir: "../datastore/testdata/fixtures/importer/invalid-lockfiles",
+			// preferring the database when filesystem-in-use exists should not error out
+			databaseEnabled: configuration.DatabaseEnabledFalse,
+			expectedError:   ErrInvalidLockfiles,
+		},
+		"invalid lockfiles prefer mode": {
+			rootdir: "../datastore/testdata/fixtures/importer/invalid-lockfiles",
+			// preferring the database when filesystem-in-use exists should not error out
+			databaseEnabled: configuration.DatabaseEnabledPrefer,
+			expectedError:   ErrInvalidLockfiles,
+		},
 		// we cannot test the scenario where the FF is disabled
 		// because it requires proper DB configuration and restoring of lockfiles
 		// this is meant to be a unit test rather than an integration test, so
