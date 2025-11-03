@@ -98,6 +98,8 @@ var (
 	// ErrDatabaseInUse is returned when the registry attempts to start with an existing database-in-use lockfile
 	// and the database is disabled.
 	ErrDatabaseInUse = errors.New(`registry metadata database in use, please enable the database https://docs.gitlab.com/ee/administration/packages/container_registry_metadata_database.html`)
+	// ErrInvalidLockfiles is returned when the lockfiles state is invalid.
+	ErrInvalidLockfiles = errors.New("database-in-use and filesystem-in-use lockfiles present, see https://docs.gitlab.com/ee/administration/packages/container_registry_metadata_database.html#troubleshooting")
 )
 
 type (
@@ -485,6 +487,16 @@ func (app *App) handleFilesystemLockFile(ctx context.Context) error {
 	if err != nil {
 		log.WithError(err).Error("could not check if database metadata is locked, see https://docs.gitlab.com/ee/administration/packages/container_registry_metadata_database.html")
 		return err
+	}
+
+	fsLocked, err := fsLocker.IsLocked(ctx)
+	if err != nil {
+		log.WithError(err).Error("could not check if filesystem metadata is locked, see https://docs.gitlab.com/ee/administration/packages/container_registry_metadata_database.html")
+		return err
+	}
+
+	if fsLocked && dbLocked {
+		return ErrInvalidLockfiles
 	}
 
 	if dbLocked {
@@ -2379,6 +2391,10 @@ func (app *App) initializeMetadataDatabase(ctx context.Context, config *configur
 	if err != nil {
 		log.WithError(err).Error("could not check if database metadata is locked, see https://docs.gitlab.com/ee/administration/packages/container_registry_metadata_database.html")
 		return nil, err
+	}
+
+	if feature.EnforceLockfiles.Enabled() && fsLocked && dbLocked {
+		return nil, ErrInvalidLockfiles
 	}
 
 	// Temporary measure to enforce lock files while all the implementation is done
