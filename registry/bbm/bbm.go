@@ -76,6 +76,8 @@ var (
 	ErrMaxJobAttemptsReached = errors.New("maximum job attempt reached")
 	// ErrWorkFunctionNotFound is returned when a referenced job has no corresponding work function.
 	ErrWorkFunctionNotFound = errors.New("work function not found")
+	// ErrNoNullIndex is returned when there is a NULL-batching job for a column that does not have required partial NULL index
+	ErrNoNullIndex = errors.New("NULL index is required for NULL batching strategy, cannot continue")
 )
 
 type WorkFunc func(ctx context.Context, db datastore.Handler, paginationTable, paginationColumn string, paginationAfter, paginationBefore, limit int) error
@@ -672,6 +674,14 @@ func isRemainingNullValues(ctx context.Context, bbmStore datastore.BackgroundMig
 	return hasNullValues, nil
 }
 
+func hasNullIndex(ctx context.Context, bbmStore datastore.BackgroundMigrationStore, bbm *models.BackgroundMigration) (bool, error) {
+	hasNullIndex, err := bbmStore.HasNullIndex(ctx, bbm.TargetTable, bbm.TargetColumn)
+	if err != nil {
+		return false, err
+	}
+	return hasNullIndex, nil
+}
+
 func finishBBM(ctx context.Context, bbmStore datastore.BackgroundMigrationStore, bbm *models.BackgroundMigration) error {
 	bbm.Status = models.BackgroundMigrationFinished
 	return bbmStore.UpdateStatus(ctx, bbm)
@@ -713,6 +723,17 @@ func createNullColumnJob(ctx context.Context, bbmStore datastore.BackgroundMigra
 
 // Find jobs for null column traversal strategy
 func findNullColumnJob(ctx context.Context, bbmStore datastore.BackgroundMigrationStore, bbm *models.BackgroundMigration) (*models.BackgroundMigrationJob, error) {
+	// Check if there is a NULL index before we try to check if there are
+	// any NULL values left
+	hasNullIndex, err := hasNullIndex(ctx, bbmStore, bbm)
+	if err != nil {
+		return nil, fmt.Errorf("checking if NULL index is present: %w", err)
+	}
+
+	if !hasNullIndex {
+		return nil, ErrNoNullIndex
+	}
+
 	// Check if there are still NULL values to process
 	isRemainingNullValues, err := isRemainingNullValues(ctx, bbmStore, bbm)
 	if err != nil {

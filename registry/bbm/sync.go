@@ -330,6 +330,17 @@ func findRunningOrActive(ctx context.Context, bbmStore datastore.BackgroundMigra
 	}
 
 	if bbm.BatchingStrategy == models.NullBatchingBBMStrategy {
+		// Check if there is a NULL index before we try to check if there are
+		// any NULL values left
+		hasNullIndex, err := hasNullIndex(ctx, bbmStore, bbm)
+		if err != nil {
+			return nil, nil, fmt.Errorf("checking if NULL index is present: %w", err)
+		}
+
+		if !hasNullIndex {
+			return nil, nil, ErrNoNullIndex
+		}
+
 		// Check if there are still NULL values to process
 		isRemainingNullValues, err := isRemainingNullValues(ctx, bbmStore, bbm)
 		if err != nil {
