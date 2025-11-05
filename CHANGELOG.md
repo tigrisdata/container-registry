@@ -1,3 +1,21 @@
+## [4.31.0](https://gitlab.com/gitlab-org/container-registry/compare/v4.30.0-gitlab...v4.31.0) (2025-11-05)
+
+
+### Features
+
+* add index validation for NullBatchingStrategy in background migrations ([90c6880](https://gitlab.com/gitlab-org/container-registry/commit/90c688023eec212945a629bf698941336760fdae))
+* **datastore:** add replica connectivity tracking with quarantine mechanism ([e652d0d](https://gitlab.com/gitlab-org/container-registry/commit/e652d0d9dbac2eaaf5380d17ca9fa884b7c61c71))
+* **registry:** add database prefer mode ([7bfefd8](https://gitlab.com/gitlab-org/container-registry/commit/7bfefd8ed35806e906c5e52b3fbe1d9eec21d2cf))
+* **registry:** check for invalid lockfiles state on startup ([9d8efa1](https://gitlab.com/gitlab-org/container-registry/commit/9d8efa12197fb954da2f23d0c86f98c3ad80cf18))
+* **registry:** import-command: allow user to determine detail log directory ([f7dadb1](https://gitlab.com/gitlab-org/container-registry/commit/f7dadb1cd290229eac85add38fb60a8014be5de1))
+
+
+### Bug Fixes
+
+* add support for recursive introspection of GCSBucketKeyer interface ([e35a438](https://gitlab.com/gitlab-org/container-registry/commit/e35a438660a4b62b65fda3b837a8e79eac67c9b9))
+* bbm progress metric collection and log field collition ([1dcbaf7](https://gitlab.com/gitlab-org/container-registry/commit/1dcbaf70f76816efe433d59a67e4e58d7ca82690))
+* race condition in TestDBLoadBalancer_ProcessQueryError ([78e4646](https://gitlab.com/gitlab-org/container-registry/commit/78e46466460a3c1c757ae74e517b8cf19032ef5f))
+
 ## [4.30.0](https://gitlab.com/gitlab-org/container-registry/compare/v4.29.0-gitlab...v4.30.0) (2025-10-27)
 
 
