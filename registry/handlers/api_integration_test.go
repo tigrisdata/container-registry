@@ -1086,12 +1086,6 @@ func TestManifestAPI_ManifestListWithLayerReferences(t *testing.T) {
 }
 
 func TestManifestAPI_Get_Schema1(t *testing.T) {
-	if time.Now().Before(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)) {
-		t.Skip("skipping test as it is flaky: https://gitlab.com/gitlab-org/container-registry/-/issues/1695")
-	} else {
-		t.Fatal("This test was temporarily skipped but should now be fixed or removed: https://gitlab.com/gitlab-org/container-registry/-/issues/1695")
-	}
-
 	env := newTestEnv(t, withSchema1PreseededInMemoryDriver)
 	env.Cleanup(t)
 
@@ -1126,6 +1120,11 @@ func TestManifestAPI_Get_Schema1(t *testing.T) {
 
 		err = tagStore.CreateOrUpdate(env.ctx, dbTag)
 		require.NoError(t, err)
+
+		// Since we're loading the schema 1 manifest directly to the primary database
+		// then reading it from a secondary when testing load balancing we should
+		// wait until replication as occurred before proceeding.
+		waitForReplica(t, env.db)
 	}
 
 	// Build URLs.

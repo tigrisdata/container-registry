@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"crypto"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -1958,4 +1959,95 @@ func setupValidRenameEnv(t *testing.T, opts ...configOpt) (*testEnv, internaltes
 	// Enable the rename lease check environment variable
 	t.Setenv(feature.OngoingRenameCheck.EnvVariable, "true")
 	return env, redisController, tokenProvider
+}
+
+// waitForReplica if load balancing is enabled. It ensures that replicas have caught up.
+// See https://gitlab.com/gitlab-org/container-registry/-/issues/1430#note_2494499316.
+func waitForReplica(t *testing.T, db datastore.LoadBalancer) {
+	t.Helper()
+
+	loadBalancingEnabled := os.Getenv("REGISTRY_DATABASE_LOADBALANCING_ENABLED")
+
+	if loadBalancingEnabled != "true" {
+		return
+	}
+
+	startTime := time.Now()
+	require.Eventually(
+		t,
+		isReplicaUpToDate(t, db),
+		5*time.Second,
+		500*time.Millisecond,
+		"replica did not sync in time")
+
+	t.Logf("waitForReplica: all replicas are up to date after %v seconds", time.Since(startTime).Seconds())
+}
+
+func isReplicaUpToDate(t *testing.T, db datastore.LoadBalancer) func() bool {
+	return func() bool {
+		t.Helper()
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+
+		replicas := db.Replicas()
+		if len(replicas) == 0 {
+			// This function is only called within `waitForReplica`, which applies `require.Eventually` to handle
+			// replication delays and any temporary errors with automatic retries. So here we're just logging instead
+			// of making the test fail immediately. The latter will happen if/when attempts are exhausted upstream.
+			return true
+		}
+
+		// Get the primary's current LSN position
+		primary := db.Primary()
+		var primaryLSN sql.NullString
+		row := primary.QueryRowContext(ctx, "SELECT pg_current_wal_lsn();")
+		if err := row.Scan(&primaryLSN); err != nil {
+			t.Logf("isReplicaUpToDate: error getting primary LSN: %v", err)
+			return false
+		}
+
+		if !primaryLSN.Valid {
+			t.Logf("isReplicaUpToDate: primary LSN is null, cannot check replicas")
+			return false
+		}
+
+		t.Logf("isReplicaUpToDate: primary LSN = %q", primaryLSN.String)
+
+		for i, replica := range replicas {
+			var result sql.NullBool
+			var receiveLSN, replayLSN sql.NullString
+
+			// Check if replica has caught up to the primary's LSN
+			// We check both that the replica has processed what it received AND that it has received up to the
+			// primary's current position
+			row := replica.QueryRowContext(
+				ctx,
+				`SELECT
+					pg_last_wal_receive_lsn(),
+					pg_last_wal_replay_lsn(),
+					pg_last_wal_receive_lsn() >= $1::pg_lsn AND
+					pg_last_wal_receive_lsn() <= pg_last_wal_replay_lsn() AS is_caught_up;`,
+				primaryLSN.String,
+			)
+
+			err := row.Scan(&receiveLSN, &replayLSN, &result)
+			if err != nil {
+				t.Logf("isReplicaUpToDate: error checking replica %d: %v", i, err)
+				return false
+			}
+
+			t.Logf("isReplicaUpToDate: replica %d - receive_lsn=%q, replay_lsn=%q, is_caught_up=%v (valid=%v)",
+				i, receiveLSN.String, replayLSN.String, result.Bool, result.Valid)
+
+			// replica not in sync yet, return early
+			if !result.Valid || !result.Bool {
+				t.Logf("isReplicaUpToDate: replica %d not caught up to primary LSN %q", i, primaryLSN.String)
+				return false
+			}
+		}
+
+		t.Logf("isReplicaUpToDate: all %d replicas have caught up to primary LSN %q", len(replicas), primaryLSN.String)
+		return true
+	}
 }
