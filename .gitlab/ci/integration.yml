@@ -658,7 +658,7 @@ cli:schema-migration-dependency:
 # occurrence label is applied to support prioritization. When a new issue is
 # created, a Slack notification is sent (if a webhook is provided).
 flaky:tracker:
-  stage: .post
+  stage: aux jobs
   allow_failure: true
   script:
     - go run ./cmd/internal/flake-tracker
