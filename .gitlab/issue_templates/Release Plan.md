@@ -72,16 +72,19 @@ The release documentation can be found [here](https://gitlab.com/gitlab-org/cont
       1. [ ] Either request a review from `@gitlab-org/maintainers/container-registry` to speed up the process, or just let the bot pick a Distribution reviewer. If reviewing the MR, make sure:
          - [ ] The MR is targeting the `master` branch.
          - [ ] The MR has a green pipeline on GitLab.com.
+   1. [ ] In case when expedited merging is required, try escalating in one of the following Slack channels: #g_build #g_operate #distribution_maintainers
 1. [ ] The version bump for [GDK](https://gitlab.com/gitlab-org/gitlab-development-kit/-/merge_requests) needs to be done manually ([example](https://gitlab.com/gitlab-org/gitlab-development-kit/-/merge_requests/4247)) as the CI job is currently not functioning.
    - [ ] Assign to the reviewer suggested by reviewer roulette
 1. [ ] The version bump for [Omnibus](https://gitlab.com/gitlab-org/omnibus-gitlab) is automatically created by the renovate bot, which is triggered every 15-30 minutes.
     1. [ ] Check for the renovate MR [here](https://gitlab.com/gitlab-org/omnibus-gitlab/-/merge_requests?scope=all&state=opened&label_name[]=automation%3Abot-authored&search=container-registry). Once the MR is created:
         1. [ ] Mark it as related to this release issue;
         1. [ ] Let the bot pick a Distribution reviewer.
+    1. [ ] In case when expedited merging is required, try escalating in one of the following Slack channels: #g_build #g_operate #distribution_maintainers
 1. [ ] The version bump for [Charts](https://gitlab.com/gitlab-org/charts/gitlab) is automatically created by the renovate bot, which is triggered every 15-30 minutes.
     1. [ ] Check for the renovate MR [here](https://gitlab.com/gitlab-org/charts/gitlab/-/merge_requests?scope=all&state=opened&label_name[]=automation%3Abot-authored&search=container-registry). Once the MR is created:
         1. [ ] Mark it as related to this release issue;
         1. [ ] Let the bot pick a Distribution reviewer.
+    1. [ ] In case when expedited merging is required, try escalating in one of the following Slack channels: #g_build #g_operate #distribution_maintainers
 1. [ ] Version bumps in [K8s Workloads](https://gitlab.com/gitlab-com/gl-infra/k8s-workloads/gitlab-com) need to be done manually for now as CI is broken. The MR title should be "Bump Container Registry to [version] ([environment(s)])".
    1. [ ] Wait for the CNG version bump to be merged.
    1. [ ] Check MRs included in the release for the labels ~high-risk-change, ~cannot-rollback.
@@ -91,6 +94,10 @@ The release documentation can be found [here](https://gitlab.com/gitlab-org/cont
       1. [ ] Version bump for Pre-Production and Staging.
       1. [ ] Version bump for Production Canary.
       1. [ ] Version bump for Production Main Stage.
+      1. [ ] Assign MRs to our stable SRE counterparts in Delivery team:
+         - [ ] Dat Tang \@dat.tang.gitlab
+         - [ ] Jenny Kim \@jennykim-gitlab
+         - if they are not responding try pinging @release-managers on #g_delivery
 1. [ ] If this is the final registry release for the milestone, create an MR to update [`REGISTRY_SELF_MANAGED_RELEASE_VERSION`](https://gitlab.com/gitlab-org/container-registry/-/blob/master/.gitlab/ci/migrate.yml?ref_type=heads#L9). Merge this MR after the milestone is complete, and the version has been added to the self-managed release for that milestone. This ensures we can detect breaking changes in registry pre-deploy/post-deploy database migrations between consecutive GitLab releases. You can verify the registry versions for the last GitLab milestone self-managed release by checking [Omnibus](https://gitlab.com/gitlab-org/omnibus-gitlab/-/blob/18-0-stable/config/software/registry.rb) (update branch to last milestone) and [Charts]( https://gitlab.com/gitlab-org/charts/gitlab/-/blob/master/CHANGELOG.md?ref_type=heads), with Charts milestone mappings available in the [documentation](https://docs.gitlab.com/charts/installation/version_mappings/).
 
 #### Potentially risky deployments
