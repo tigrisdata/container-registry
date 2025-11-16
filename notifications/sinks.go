@@ -415,7 +415,7 @@ type ignoredSink struct {
 }
 
 func newIgnoredSink(sink Sink, ignored, ignoreActions []string) Sink {
-	if len(ignored) == 0 {
+	if len(ignored) == 0 && len(ignoreActions) == 0 {
 		return sink
 	}
 
