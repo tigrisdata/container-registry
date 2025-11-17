@@ -24,7 +24,7 @@
 [Database] @jdrpereira @suleimiahmed 
 /registry/datastore/
 
-[Database load-balancing] @jdrpereira @suleimiahmed 
+[Database load-balancing] @jdrpereira @suleimiahmed @vespian_gl
 /registry/datastore/**/loadbalancing*.go
 /docs/spec/gitlab/database-load-balancing.md
 
