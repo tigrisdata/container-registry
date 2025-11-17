@@ -809,7 +809,9 @@ func (h *repositoryHandler) RenameRepository(w http.ResponseWriter, r *http.Requ
 		isPathOriginRepo: renameOriginRepo,
 	}
 
+	start := time.Now()
 	renamed, err := handleRenameStoreOperation(h.Context, w, rsp, h.App.redisCache, h.db.Primary())
+	elapsedMs := time.Since(start).Milliseconds()
 	if err != nil {
 		h.Errors = append(h.Errors, errcode.FromUnknownError(err))
 		return
@@ -821,6 +823,15 @@ func (h *repositoryHandler) RenameRepository(w http.ResponseWriter, r *http.Requ
 		if isRenameNamespaceRequest {
 			renameType = notifications.NamespaceRename
 		}
+
+		l.WithFields(log.Fields{
+			"rename_type":        renameType,
+			"from":               repo.Path,
+			"to":                 newPath,
+			"repository_count":   repoCount,
+			"rename_duration_ms": elapsedMs,
+			"dry_run":            false,
+		}).Info("repository renamed")
 
 		if err := h.queueBridge.RepoRenamed(h.Repository.Named(),
 			notifications.Rename{
@@ -967,16 +978,13 @@ func isRepositoryNameTaken(ctx context.Context, rStore datastore.RepositoryStore
 
 	// if a base path does not contain a repository, we still need to check
 	// that no sub-repositories potentially exist within the nested path
-	if newRepo == nil {
-		// check that no sub-repositories exist for the path
-		subrepositories, err := rStore.CountPathSubRepositories(ctx, namespaceId, newPath)
-		if err != nil {
-			return false, err
-		}
-		if subrepositories > 0 {
-			detail := v1.ConflictWithExistingRepository(newName)
-			return true, v1.ErrorCodeRenameConflict.WithDetail(detail)
-		}
+	subrepositories, err := rStore.CountPathSubRepositories(ctx, namespaceId, newPath)
+	if err != nil {
+		return false, err
+	}
+	if subrepositories > 0 {
+		detail := v1.ConflictWithExistingRepository(newName)
+		return true, v1.ErrorCodeRenameConflict.WithDetail(detail)
 	}
 	return false, nil
 }
