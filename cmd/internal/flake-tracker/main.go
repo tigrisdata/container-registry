@@ -172,7 +172,7 @@ func main() {
 			created++
 			logf("created issue #%d for %s", is.IID, testID)
 			// Slack notification (best-effort, non-blocking)
-			if webhook := os.Getenv("SLACK_WEBHOOK_URL"); webhook != "" {
+			if webhook := os.Getenv("FLAKE_TRACKER_SLACK_WEBHOOK_URL"); webhook != "" {
 				msg := fmt.Sprintf(
 					":warning: Flaky test detected: `%s`\nIssue: %s\nPipeline: %s",
 					testID, is.WebURL, pipelineURL,
