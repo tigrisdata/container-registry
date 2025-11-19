@@ -65,12 +65,12 @@ curl --header "Authorization: Bearer <token>" "https://registry.gitlab.com/gitla
 
 #### Header
 
- Status Code        | Reason                                                                                                           |
- ------------------ | ---------------------------------------------------------------------------------------------------------------- |
- `200 OK`           | The registry implements this API specification.                                                                  |
- `401 Unauthorized` | The client should take action based on the contents of the `WWW-Authenticate` header and try the endpoint again. |
- `404 Not Found`    | The registry implements this API specification, but it is unavailable because the metadata database is disabled. |
- Others             | The registry does not implement this API specification.                                                          |
+ Status Code        | Reason                                                                                                                                                 |
+ ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+ `200 OK`           | The registry implements this API specification.                                                                                                        |
+ `401 Unauthorized` | The client should take action based on the contents of the `WWW-Authenticate` header and try the endpoint again. See [authentication](#authentication) |
+ `404 Not Found`    | The registry implements this API specification, but it is unavailable because the metadata database is disabled.                                       |
+ Others             | The registry does not implement this API specification.                                                                                                |
 
 #### Example
 
@@ -108,7 +108,7 @@ curl --header "Authorization: Bearer <token>" "https://registry.gitlab.com/gitla
  Status Code        | Reason                                                       |
  ------------------ | ------------------------------------------------------------ |
  `200 OK`           | The repository was found. The response body includes the requested details. |
- `401 Unauthorized` | The client should take action based on the contents of the `WWW-Authenticate` header and try the endpoint again. |
+ `401 Unauthorized` | The client should take action based on the contents of the `WWW-Authenticate` header and try the endpoint again. See [authentication](#authentication) |
  `400 Bad Request`    | The value of the `size` query parameter is invalid.                                |
  `404 Not Found`    | The repository was not found.                                |
 
@@ -150,12 +150,12 @@ curl --header "Authorization: Bearer <token>" \
 
 #### Header
 
- Status Code        | Reason                                                                                                           |
- ------------------ |------------------------------------------------------------------------------------------------------------------|
- `200 OK`           | The repository was found. The response body includes the requested details.                                      |
- `401 Unauthorized` | The client should take action based on the contents of the `WWW-Authenticate` header and try the endpoint again. |
- `400 Bad Request`  | The value of the `tagName` is not a valid tag name.                                                                 |
- `404 Not Found`    | The repository or tag name was not found.                                                                        |
+ Status Code        | Reason                                                                                                                                                 |
+--------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
+ `200 OK`           | The repository was found. The response body includes the requested details.                                                                            |
+ `401 Unauthorized` | The client should take action based on the contents of the `WWW-Authenticate` header and try the endpoint again. See [authentication](#authentication) |
+ `400 Bad Request`  | The value of the `tagName` is not a valid tag name.                                                                                                    |
+ `404 Not Found`    | The repository or tag name was not found. |
 
 #### Body
 
@@ -375,12 +375,12 @@ Expected parameters and responses
 
 #### Header
 
- Status Code        | Reason                                                                                                           |
---------------------|------------------------------------------------------------------------------------------------------------------|
- `200 OK`           | The repository was found. The response body includes the requested details.                                      |
- `400 Bad Request`  | The value for the `n` and/or `last` pagination query parameters are invalid.                                     |
- `401 Unauthorized` | The client should take action based on the contents of the `WWW-Authenticate` header and try the endpoint again. |
- `404 Not Found`    | The repository was not found.                                                                                    |
+ Status Code        | Reason                                                                                                                                                 |
+--------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
+ `200 OK`           | The repository was found. The response body includes the requested details.                                                                            |
+ `400 Bad Request`  | The value for the `n` and/or `last` pagination query parameters are invalid.                                                                           |
+ `401 Unauthorized` | The client should take action based on the contents of the `WWW-Authenticate` header and try the endpoint again. See [authentication](#authentication) |
+ `404 Not Found`    | The repository was not found.                                                                                                                          |
 
 #### Body
 
@@ -478,12 +478,12 @@ curl --header "Authorization: Bearer <token>" "https://registry.gitlab.com/gitla
 
 #### Header
 
- Status Code        | Reason                                                                                                           |
---------------------|------------------------------------------------------------------------------------------------------------------|
- `200 OK`           | The response body includes the requested details or is empty if the repository does not exist or if there are no repositories with at least one tag under the base path provided in the request.                                      |
- `400 Bad Request`  | The value for the `n` and/or `last` pagination query parameters are invalid.                                     |
- `401 Unauthorized` | The client should take action based on the contents of the `WWW-Authenticate` header and try the endpoint again. |
- `404 Not Found`    | The namespace associated with the repository was not found.                                                                                    |
+ Status Code        | Reason                                                                                                                                                                                           |
+--------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+ `200 OK`           | The response body includes the requested details or is empty if the repository does not exist or if there are no repositories with at least one tag under the base path provided in the request. |
+ `400 Bad Request`  | The value for the `n` and/or `last` pagination query parameters are invalid.                                                                                                                     |
+ `401 Unauthorized` | The client should take action based on the contents of the `WWW-Authenticate` header and try the endpoint again. See [authentication](#authentication)                                           |
+ `404 Not Found`    | The namespace associated with the repository was not found.                                                                                                                                      |
 
 #### Body
 
@@ -611,15 +611,15 @@ curl  --header "Authorization: Bearer <token>" -X PATCH https://registry.gitlab.
 
 #### Header
 
- Status Code                | Reason                                                                                                                                                                                                                                                                                                 |
-----------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+ Status Code                | Reason                                                                                                                                                                                                                                                                              |
+----------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
  `202 Accepted`             | The new name/namespace was successfully leased to the `path` in the request. The response body contains an object with the `ttl` indicating the time left before the lease is released. This is returned only for successful requests with query parameter `dry_run` set to `true`. |
- `204 No Content`           | The requested `path` was successfully renamed to the suggested new name/namespace. This is returned only for successful requests with query parameter `dry_run` set to `false` (default).                                                                                                                              |
- `400 Bad Request`          | An invalid `path` parameter, request body or token claim was provided.                                                                                                                                                                                                                    |
- `401 Unauthorized`         | The client should take action based on the contents of the `WWW-Authenticate` header and try the endpoint again.                                                                                                                                                                                       |
- `404 Not Found`            | The namespace associated with the repository was not found or the rename operation is not implemented.                                                                                                                                                                                     |
- `409 Conflict`             | The proposed base repository `name` or `namespace` in the body is already taken.                                                                                                                                                                                                                                      |
- `422 Unprocessable Entity` | The base repository `path` contains too many sub-repositories for the operation to be executed.                                                                                                                                                                                                        |
+ `204 No Content`           | The requested `path` was successfully renamed to the suggested new name/namespace. This is returned only for successful requests with query parameter `dry_run` set to `false` (default).                                                                                           |
+ `400 Bad Request`          | An invalid `path` parameter, request body or token claim was provided.                                                                                                                                                                                                              |
+ `401 Unauthorized`         | The client should take action based on the contents of the `WWW-Authenticate` header and try the endpoint again. See [authentication](#authentication)                                                                                                                              |
+ `404 Not Found`            | The namespace associated with the repository was not found or the rename operation is not implemented.                                                                                                                                                                              |
+ `409 Conflict`             | The proposed base repository `name` or `namespace` in the body is already taken.                                                                                                                                                                                                    |
+ `422 Unprocessable Entity` | The base repository `path` contains too many sub-repositories for the operation to be executed.                                                                                                                                                                                     |
 
 #### Body
 
@@ -706,10 +706,10 @@ curl --header "Authorization: Bearer <token>" "https://registry.gitlab.com/gitla
 
 #### Header
 
- Status Code        | Reason                                                                                                                                                                                                                                                     |
---------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
- `200 OK`           | Request successful. The response body includes the requested statistics.                                                                                                                                                                                   |
- `401 Unauthorized` | The client should take action based on the contents of the `WWW-Authenticate` header and try the endpoint again. Statistics may contain sensitive information, admin permissions will be required to authenticate, similar to the `v2/_catalog/` endpoint. |
+ Status Code        | Reason                                                                                                                                                                                                                                                                                           |
+--------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+ `200 OK`           | Request successful. The response body includes the requested statistics.                                                                                                                                                                                                                         |
+ `401 Unauthorized` | The client should take action based on the contents of the `WWW-Authenticate` header and try the endpoint again. Statistics may contain sensitive information, admin permissions will be required to authenticate, similar to the `v2/_catalog/` endpoint. See [authentication](#authentication) |
 
 #### Body
 
