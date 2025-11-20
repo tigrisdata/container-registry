@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/docker/distribution/registry/datastore/metrics"
@@ -733,31 +734,47 @@ func (bms *backgroundMigrationStore) SetTotalTupleCount(ctx context.Context, id 
 func (bms *backgroundMigrationStore) EstimateTotalTupleCount(ctx context.Context, bbm *models.BackgroundMigration) (int64, error) {
 	schemaName, tableName := parseSchemaAndTable(bbm.TargetTable)
 
+	// Get estimated total rows from PostgreSQL statistics (reltuples)
 	totalRows, err := bms.estimateTotalRowsViaReltuples(ctx, schemaName, tableName)
 	if err != nil {
 		return 0, err
 	}
 
-	// Null batching: apply null fraction if available
+	// Unable to estimate rows (table may be empty or statistics unavailable)
+	if totalRows <= 0 {
+		return 0, nil
+	}
+
+	// For null batching, adjust estimate based on the fraction of NULL values in the target column
 	if bbm.BatchingStrategy == models.NullBatchingBBMStrategy {
 		nf, err := bms.fetchNullFrac(ctx, schemaName, tableName, bbm.TargetColumn)
 		if err != nil {
 			return 0, err
 		}
-		// round up
-		total := int64(float64(totalRows) * nf)
-		if float64(totalRows)*nf > float64(total) {
-			total++
+
+		// No null fraction available in pg_stats (column not analyzed or has no NULLs)
+		// Assume worst case: all rows need migration
+		if nf == 0 {
+			return totalRows, nil
 		}
-		if total < 0 {
-			total = 0
+
+		// Calculate estimated NULL rows: total rows × null fraction, rounded up
+		// Example: 1000 rows × 0.153 null_frac = 153 NULL rows to process
+		totalNullRows := int64(math.Ceil(float64(totalRows) * nf))
+
+		// Defensive: guard against negative values from corrupted statistics
+		if totalNullRows < 0 {
+			totalNullRows = 0
 		}
-		return total, nil
+
+		// Defensive: cap at total rows in case null_frac > 1.0 (corrupted pg_stats)
+		if totalNullRows > totalRows {
+			totalNullRows = totalRows
+		}
+
+		return totalNullRows, nil
 	}
 
-	if totalRows < 0 {
-		totalRows = 0
-	}
 	return totalRows, nil
 }
 
