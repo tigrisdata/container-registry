@@ -99,6 +99,7 @@ func AllWork() []Work {
 	return []Work{
 		// {Name: "ExampleNameThatMatchesTheJobSignatureNameColumn", Do: ExampleDoFunction}
 		{Name: "copyManifestMediaTypeIDToNewBigIntColumn", Do: copyManifestMediaTypeIDToNewBigIntColumn},
+		{Name: "populateBlobsIDColumn", Do: updateBlobNullIDs},
 	}
 }
 
@@ -111,6 +112,27 @@ func copyManifestMediaTypeIDToNewBigIntColumn(ctx context.Context, db datastore.
 		return err
 	}
 	return nil
+}
+
+func updateNullIDs(ctx context.Context, db datastore.Handler, paginationTable, paginationColumn, sequenceName string, limit int) error {
+	q := fmt.Sprintf(`
+		UPDATE %s t
+		SET %s = nextval('%s')
+		FROM (
+			SELECT ctid 
+			FROM %s 
+			WHERE %s IS NULL 
+			LIMIT $1
+		) sub
+		WHERE t.ctid = sub.ctid
+	`, paginationTable, paginationColumn, sequenceName, paginationTable, paginationColumn)
+
+	_, err := db.ExecContext(ctx, q, limit)
+	return err
+}
+
+func updateBlobNullIDs(ctx context.Context, db datastore.Handler, paginationTable, paginationColumn string, _, _, limit int) error {
+	return updateNullIDs(ctx, db, paginationTable, paginationColumn, "blobs_id_seq", limit)
 }
 
 // RegisterWork registers all known work functions to the Background Migration worker.
