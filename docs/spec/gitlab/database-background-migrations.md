@@ -135,7 +135,7 @@ For Null/Predicate Batching, there are important considerations:
 
 - **Concurrency and Idempotence:** The work must be idempotent and should modify the predicate (e.g., update the NULL column) within the same transaction to prevent reprocessing the same rows repeatedly.
 
-- **Performance Optimization:** It is crucial to add an index to efficiently support the predicate, with a preference for a partial index. Without an index, the operation to check for remaining work can degrade into full table scans, especially in large tables, impacting performance significantly. The discussion [here](https://gitlab.com/gitlab-org/container-registry/-/issues/1248#note_1877479379) is a clear example of why this is needed.
+- **Performance Optimization:** It is crucial to add an index to efficiently support the predicate, with a preference for a partial index. Without an index, the operation to check for remaining work can degrade into full table scans, especially in large tables, impacting performance significantly. [This discussion](https://gitlab.com/gitlab-org/container-registry/-/issues/1248#note_1877479379) is a clear example of why this is needed.
 
 ### Estimating Progress and Total Tuple Count
 
@@ -561,7 +561,7 @@ The release of the first iteration of background migrations is structured into t
 
 Phase 1 focuses on introducing the minimum viable change (MVC) of the background migration system to GitLab.com. This phase will enable the ability to manage and run background migrations while the registry is actively serving traffic, as well as through the Registry CLI.
 
-For this phase, we have selected a background migration targeting the smallest table in [this migration plan](https://gitlab.com/groups/gitlab-org/-/epics/13805#note_1899438887). Specifically, we will migrate the `manifests` table to populate a new `media_type_id_convert_to_bigint` column. More details on the migration plan can be found [here](https://gitlab.com/groups/gitlab-org/-/epics/13805#note_1899438887)
+For this phase, we have selected a background migration targeting the smallest table in [this migration plan](https://gitlab.com/groups/gitlab-org/-/epics/13805#note_1899438887). Specifically, we will migrate the `manifests` table to populate a new `media_type_id_convert_to_bigint` column. See [more details](https://gitlab.com/groups/gitlab-org/-/epics/13805#note_1899438887) on the migration plan.
 
 #### Rollout Plan
 
