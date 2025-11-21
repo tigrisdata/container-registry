@@ -1,0 +1,103 @@
+# .gitlab/ci/release_backport.yml
+# Manual backport helper: branch from BASE_TAG, cherry-pick SHAs, regenerate CHANGELOG,
+# create release commit, tag v<NEW_VERSION>-gitlab.
+# - RESUME:            Optional true/false. If true, the job resumes on BRANCH_NAME after you manually resolve
+#                      cherry-pick conflicts and push. Defaults to "false".
+# - TAG:               Optional. The tag to create, e.g., v4.13.1-gitlab. Defaults to "v${NEW_VERSION}-gitlab".
+
+# - BASE_TAG:          Required. The base tag to branch from, e.g., v4.13.0-gitlab.
+# - CHERRY_PICK_SHAS:  Required. The SHAs to cherry-pick, space/comma/newline-separated.
+# - NEW_VERSION:       Required. The new version to release, e.g., 4.13.1.
+
+release:backport:
+  stage: release
+  image: node:20-alpine
+  resource_group: release
+  needs: []
+  rules:
+    - when: manual
+      allow_failure: true
+  variables:
+    GIT_STRATEGY: fetch
+    GIT_DEPTH: "0"
+    REPO_URL: "https://oauth2:${RELEASE_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+  before_script:
+    - apk add --no-cache git bash curl jq
+    - git config --global user.email "project_13831684_bot_1f10d664ae815e69d247c8cd4c319058@noreply.${CI_SERVER_HOST}"
+    - git config --global user.name "Registry Release Bot"
+  environment:
+  # only users with access to the release environment (i.e. maintainers) can run this manual job
+    name: release
+  script:
+    - |
+      set -euo pipefail
+
+      # Inputs
+      : "${NEW_VERSION:?NEW_VERSION is required, e.g., 4.13.1}"
+      BRANCH_NAME="${BRANCH_NAME:-release/v${NEW_VERSION}}"
+      RESUME="${RESUME:-false}"
+      TAG="${TAG:-v${NEW_VERSION}-gitlab}"
+
+      if [[ -z "${RELEASE_TOKEN:-}" ]]; then
+        echo "RELEASE_TOKEN not set"; exit 1
+      fi
+
+      git fetch --all --tags --prune
+
+      if [[ "${RESUME}" == "true" ]]; then
+        # Continue after manual conflict resolution
+        git fetch origin "${BRANCH_NAME}" || true
+        if git rev-parse "origin/${BRANCH_NAME}" >/dev/null 2>&1; then
+          git checkout -B "${BRANCH_NAME}" "origin/${BRANCH_NAME}"
+        else
+          git checkout -B "${BRANCH_NAME}"
+        fi
+        git cherry-pick --abort || true
+      else
+        : "${BASE_TAG:?BASE_TAG is required, e.g., v4.13.0-gitlab}"
+        : "${CHERRY_PICK_SHAS:?CHERRY_PICK_SHAS is required (space/comma/newline-separated)}"
+
+        # Start from the base release tag
+        if ! git rev-parse "${BASE_TAG}^{tag}" >/dev/null 2>&1 && ! git rev-parse "${BASE_TAG}^{commit}" >/dev/null 2>&1; then
+          echo "BASE_TAG not found: ${BASE_TAG}"; exit 1
+        fi
+        git checkout -B "${BRANCH_NAME}" "${BASE_TAG}"
+
+        # Cherry-pick
+        for sha in $(echo "${CHERRY_PICK_SHAS}" | tr ',\n' ' '); do
+          if ! git cherry-pick -x "${sha}"; then
+            git cherry-pick --abort || true
+            # Make the branch available for manual conflict resolution
+            git push "${REPO_URL}" "${BRANCH_NAME}:${BRANCH_NAME}" || true
+            echo "Cherry-pick conflict. Resolve locally on ${BRANCH_NAME}, push, then re-run with RESUME=true."
+            exit 1
+          fi
+        done
+      fi
+
+      # Release commit (skip if already present)
+      if ! git log -1 --pretty=%s | grep -Eq "^chore\\(release\\):[[:space:]]*${NEW_VERSION}$"; then
+        echo '{"name":"container-registry","version":"'"${NEW_VERSION}"'"}' > /tmp/pkg.json
+        npx conventional-changelog-cli@3 -p conventionalcommits -k /tmp/pkg.json -i CHANGELOG.md -s -r 1
+        git add CHANGELOG.md
+        git commit -m "chore(release): ${NEW_VERSION}"
+      fi
+
+      # Push branch
+      git push "${REPO_URL}" "${BRANCH_NAME}:${BRANCH_NAME}"
+
+      # Create tag if missing (idempotent)
+      if ! curl -sf -H "PRIVATE-TOKEN: ${RELEASE_TOKEN}" \
+           "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/repository/tags/${TAG}" >/dev/null; then
+        REF_SHA="$(git rev-parse HEAD)"
+        curl -sS -X POST -H "PRIVATE-TOKEN: ${RELEASE_TOKEN}" \
+          --data-urlencode "tag_name=${TAG}" \
+          --data-urlencode "ref=${REF_SHA}" \
+          --data-urlencode "message=Release ${TAG}" \
+          "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/repository/tags" >/dev/null
+      fi
+  artifacts:
+    when: always
+    expire_in: 7 days
+    paths:
+      - CHANGELOG.md

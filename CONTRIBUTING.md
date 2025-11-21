@@ -251,7 +251,7 @@ better-suited to review your change.
 We use [semantic-release](https://semantic-release.gitbook.io/semantic-release/)
 to generate changelog entries and new git tags.
 
-### MR-based release workflow (default)
+### Release workflow
 
 To add review gates and avoid direct pushes to `master`, releases are prepared on a temporary release branch via CI and merged through a Merge Request (MR):
 
@@ -278,6 +278,30 @@ Required CI variables for automation:
 - Configure Protected Tags to allow the token’s user to create `v*-gitlab`.
 
 - `SLACK_WEBHOOK_URL` remains used by publish flow.
+
+### Patch a release
+
+Use the manual CI job `release:backport` to create a patch release on a maintenance line without pushing to the default branch.
+
+- Prerequisites
+  - The fix is already merged into the default branch; collect its commit SHA(s).
+
+- Run the job
+  - Trigger `release:backport` and set:
+    - `BASE_TAG`: base release tag to branch from, for example `v4.13.0-gitlab`
+    - `NEW_VERSION`: target version without the “v”, for example `4.13.1`
+    - `CHERRY_PICK_SHAS`: one or more SHAs, separated by spaces/commas/newlines
+    - Optional `BRANCH_NAME`: defaults to `release/v<NEW_VERSION>`
+  - The job will:
+    - Create the branch from `BASE_TAG` and cherry‑pick the SHAs
+    - Regenerate `CHANGELOG.md`
+    - Commit `chore(release): <NEW_VERSION>`
+    - Push the branch and create the tag `v<NEW_VERSION>-gitlab`
+  - The tag pipeline publishes the release.
+
+- Conflict recovery
+  - If a cherry‑pick conflicts, the job aborts, pushes `BRANCH_NAME`, and exits with instructions.
+  - Resolve conflicts locally on `BRANCH_NAME`, push, then rerun `release:backport` with the same `NEW_VERSION` and `RESUME=true`.
 
 ### Legacy local flow (fallback)
 
