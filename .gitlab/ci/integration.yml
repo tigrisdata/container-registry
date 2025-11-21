@@ -651,12 +651,13 @@ cli:schema-migration-dependency:
     PACKAGE: 'github.com/docker/distribution/registry'
   script: $GO_TEST -v -coverprofile=coverage.out -tags=$TAGS
 
-# flaky:tracker is a command that runs in CI after tests. It reads the current pipeline's test
-# report via the GitLab REST API, identifies failing test
-# cases, and for each unique test creates or updates a tracking issue.
-# Each failure occurrence is appended as a comment. A bucketed
-# occurrence label is applied to support prioritization. When a new issue is
-# created, a Slack notification is sent (if a webhook is provided).
+# flaky:tracker is a command that runs in CI after tests on the default branch. 
+# It reads the current pipeline's test report via the GitLab REST API, identifies failing test
+# cases, and for each unique test creates or updates a tracking issue in the issue project.
+# Each failure occurrence is appended as a comment. A bucketed occurrence label is applied 
+#to support prioritization. Weights are also used to support prioritization, where higher 
+# weights indicate more frequent flakiness. When a new issue is created, a Slack notification
+# is sent (if a webhook is provided).
 flaky:tracker:
   stage: aux jobs
   allow_failure: true

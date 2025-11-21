@@ -119,3 +119,9 @@ import:three-step:
     - ./bin/registry database import --step-one --log-to-stdout config/database-filesystem.yml
     - ./bin/registry database import --step-two --log-to-stdout config/database-filesystem.yml
     - ./bin/registry database import --step-three --log-to-stdout config/database-filesystem.yml
+
+flaky:tracker:test:
+  stage: test
+  needs: ['modules:download']
+  script:
+    - go test ./cmd/internal/flake-tracker/... -v
