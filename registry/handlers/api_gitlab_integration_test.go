@@ -2134,7 +2134,7 @@ func TestGitlabAPI_RenameRepository_NameTaken(t *testing.T) {
 
 func TestGitlabAPI_RenameRepository_ExceedsLimit(t *testing.T) {
 	// apply base registry config/setup (without authorization) to allow seeding repository with test data
-	envPre := newTestEnv(t)
+	envPre := newTestEnv(t, withLogLevel(configuration.LogLevelWarn))
 	envPre.Cleanup(t)
 	envPre.requireDB(t)
 
@@ -2151,7 +2151,7 @@ func TestGitlabAPI_RenameRepository_ExceedsLimit(t *testing.T) {
 
 	// override registry config/setup to use token based authorization for all proceeding requests
 	tokenProvider := newAuthTokenProvider(t)
-	envPost := newTestEnv(t, withRedisCache(testutil.RedisServer(t).Addr()), withTokenAuth(tokenProvider.certPath(), defaultIssuerProps()))
+	envPost := newTestEnv(t, withRedisCache(testutil.RedisServer(t).Addr()), withTokenAuth(tokenProvider.certPath(), defaultIssuerProps()), withLogLevel(configuration.LogLevelWarn))
 	envPost.Cleanup(t)
 
 	// create and execute test request
