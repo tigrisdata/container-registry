@@ -8,7 +8,7 @@ Related to <!-- add the issue URL here -->
 
 ## Author checklist
 
-- [ ] **CODEOWNERS Review**: This MR requires approval from at least one [CODEOWNER](../../CODEOWNERS) per category/file.
+- [ ] **CODEOWNERS Review**: This MR requires approval from at least one [CODEOWNER](../CODEOWNERS) per category/file.
   - If codeowners are absent or the change is urgent, any registry maintainer can temporarily disable CODEOWNERS reviews in the project settings. When doing so:
     - [ ] Add a comment on the MR justifying the bypass
     - [ ] Mention/CC the designated codeowners in the MR for async review
