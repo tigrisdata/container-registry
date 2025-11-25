@@ -8,6 +8,12 @@ Related to <!-- add the issue URL here -->
 
 ## Author checklist
 
+- [ ] **CODEOWNERS Review**: This MR requires approval from at least one [CODEOWNER](../../CODEOWNERS) per category/file.
+  - If codeowners are absent or the change is urgent, any registry maintainer can temporarily disable CODEOWNERS reviews in the project settings. When doing so:
+    - [ ] Add a comment on the MR justifying the bypass
+    - [ ] Mention/CC the designated codeowners in the MR for async review
+    - [ ] Re-enable CODEOWNERS reviews in project settings once the MR is merged
+  - If you lack permissions to disable CODEOWNERS reviews, reach out to the Engineering Manager (`@jaime`) or Senior Engineering Manager (`@crystalpoole`) for assistance.
 - Assign one of [conventional-commit](https://www.conventionalcommits.org/en/v1.0.0/#summary) prefixes to the MR.
   - [ ] `fix`: Indicates a bug fix, triggers a patch release.
   - [ ] `feat`: Signals the introduction of a new feature, triggers a minor release.
