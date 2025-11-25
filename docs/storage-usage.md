@@ -137,7 +137,7 @@ The solution was to implement a database query, wrapped in a new API route, that
 
 While the problem statement above specifically mentions individual repositories, the logic applies for root (`foo`), intermediate (`foo/bar`) or leaf (`foo/bar/car`) repositories. The difference is that instead of limiting the calculation to the sum of all unique layers within a single repository, we may need to expand that across multiple repositories. So, if we want to know the deduplicated size of `foo/bar` and its descendants, we need to deduplicate the layers associated with `foo/bar`, `foo/bar/car` and any other repositories under `foo/bar/`.
 
-The new API route is `GET /gitlab/v1/repositories/<path>/?size=[self|self_with_descendants]`, and is documented [here](spec/gitlab/api.md#get-repository-details). From there you can locate the related codebase and the currently used database queries.
+The new API route is `GET /gitlab/v1/repositories/<path>/?size=[self|self_with_descendants]` and [is documented](spec/gitlab/api.md#get-repository-details). From there you can locate the related codebase and the currently used database queries.
 
 ## Caveats
 
@@ -155,7 +155,7 @@ Despite the changes introduced in [gitlab-org/container-registry#853](https://gi
 
 However, for GitLab.com, in case we need to estimate the size of one of these repositories (either on-demand or for statistics purposes), we can do so manually using a production database replica with no configured timeouts. To do so, do the following:
 
-1. Get access to a production database replica, as documented [here](ssh-access-for-debugging.md);
+1. Get access to a production database replica as [documented](ssh-access-for-debugging.md);
 1. Start a transaction and disable statement timeouts within:
 
    ```sql

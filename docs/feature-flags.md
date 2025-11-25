@@ -37,7 +37,7 @@ registry:
 This can be done independently for all environments and their stages. To do so we need to create an MR for the
 [k8s-workloads](https://gitlab.com/gitlab-com/gl-infra/k8s-workloads/gitlab-com) project and update the `.yaml.gotmpl`
 that corresponds to the desired environment. All files can be found
-[here](https://gitlab.com/gitlab-com/gl-infra/k8s-workloads/gitlab-com/-/tree/master/releases/gitlab/values). Feature
+[at this location](https://gitlab.com/gitlab-com/gl-infra/k8s-workloads/gitlab-com/-/tree/master/releases/gitlab/values). Feature
 flags should be toggled individually for each environment, and for production canary and main stages (in this order),
 all with enough time between to assert that the corresponding functionality is functioning properly.
 

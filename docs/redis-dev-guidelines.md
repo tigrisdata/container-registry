@@ -9,9 +9,10 @@ within the scope of the HTTP API, the
 metadata database, the garbage collector or the storage backend, respectively.
 
 Additionally, in order to guarantee optimal forward compatibility with Redis Cluster, we ensure these keys
-are CROSSSLOT compatible. See the Redis Cluster specification
-[here](https://redis.io/docs/reference/cluster-spec/#hash-tags) and the corresponding GitLab documentation
-[here](https://docs.gitlab.com/ee/development/redis.html#multi-key-commands) for additional information on this subject.
+are CROSSSLOT compatible. See the
+[Redis Cluster specification](https://redis.io/docs/reference/cluster-spec/#hash-tags) and the
+[corresponding GitLab documentation](https://docs.gitlab.com/ee/development/redis.html#multi-key-commands) for additional
+information on this subject.
 
 ### Suffixes
 

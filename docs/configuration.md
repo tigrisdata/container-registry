@@ -1061,7 +1061,7 @@ performance overhead to processes when it is enabled ([source](https://medium.co
 | `service`        | no       | The name of the service under which the profiled data will be recorded and exposed. Defaults to the value of the `GAE_SERVICE` environment variable or instance metadata.                      |
 | `serviceversion` | no       | The version of the service. Defaults to the `GAE_VERSION` environment variable if that is set, or to empty string otherwise.                                              |
 | `projectid`      | no       | The project ID. Defaults to the `GOOGLE_CLOUD_PROJECT` environment variable or instance metadata.                                                                                              |
-| `keyfile`        | no       | Path of a private service account key file in JSON format used for [Service Account Authentication](https://cloud.google.com/storage/docs/authentication#service_accounts). The service account must have the `roles/cloudprofiler.agent` role or manually specified permissions as described [here](https://cloud.google.com/profiler/docs/iam#roles) for the agent role. Defaults to the `GOOGLE_APPLICATION_CREDENTIALS` environment variable or instance metadata. |
+| `keyfile`        | no       | Path of a private service account key file in JSON format used for [Service Account Authentication](https://cloud.google.com/storage/docs/authentication#service_accounts). The service account must have the [`roles/cloudprofiler.agent` role or manually specified permissions](https://cloud.google.com/profiler/docs/iam#roles) for the agent role. Defaults to the `GOOGLE_APPLICATION_CREDENTIALS` environment variable or instance metadata. |
 
 See the Stackdriver Profiler [API docs](https://pkg.go.dev/cloud.google.com/go/profiler?tab=doc#Config)
 for more details about configuration options.
@@ -1303,7 +1303,7 @@ accept event notifications.
 | `url`     | yes      | The URL to which events should be published.                                                                                                                                                                                       |
 | `headers` | yes      | A list of static headers to add to each request. Each header's name is a key beneath `headers`, and each value is a list of payloads for that header name. Values must always be lists.                                            |
 | `timeout` | yes      | A value for the HTTP timeout. A positive integer and an optional suffix indicating the unit of time, which may be `ns`, `us`, `ms`, `s`, `m`, or `h`. If you omit the unit of time, `ns` is used.                                  |
-| `threshold` | no    | **DEPRECATED**: This parameter is deprecated in favor of `maxretries`. When `maxretries` is not set, `threshold` will be automatically translated to an equivalent `maxretries` value based on the configured `backoff` time. The translation uses a time window calculation to determine the appropriate number of retries. See [here](#migration-from-threshold-to-maxretries) for migration details. |
+| `threshold` | no    | **DEPRECATED**: This parameter is deprecated in favor of `maxretries`. When `maxretries` is not set, `threshold` will be automatically translated to an equivalent `maxretries` value based on the configured `backoff` time. The translation uses a time window calculation to determine the appropriate number of retries. See [information](#migration-from-threshold-to-maxretries) for migration details. |
 | `maxretries` | no | An integer specifying the maximum number of times to retry sending a failed event before dropping it. When this field is defined, it takes precedence over `threshold`. If neither `threshold` nor `maxretries` is specified, defaults to 10. |
 | `backoff` | yes      | The base backoff duration between retry attempts. Used as the initial interval in an exponential backoff strategy. A positive integer and an optional suffix indicating the unit of time, which may be `ns`, `us`, `ms`, `s`, `m`, or `h`. If you omit the unit of time, `ns` is used. |
 | `ignoredmediatypes`|no| A list of target media types to ignore. Events with these target media types are not published to the endpoint.                                                                                                                    |
@@ -1509,11 +1509,11 @@ Other use cases are expected to follow and will be documented here.
 The registry is currently applying a non-configurable TTL of 6 hours to all cached keys. We intend to fine-tune this
 value and make it configurable once the feature is considered stable.
 
-Please read the corresponding development documentation [here](redis-dev-guidelines.md) for more details about caching in Redis, such as key and value formats.
+Please read the [corresponding development documentation](redis-dev-guidelines.md) for more details about caching in Redis, such as key and value formats.
 
 All the Redis connection parameters in the parent section are also available here. The only addition is a new
 `enabled` parameter to toggle the caching functionality without having to comment or remove the whole subsection. Please
-refer to the documentation for the remaining connection parameters [`here`](#redis).
+refer to the documentation for the [remaining connection parameters](#redis).
 
 | Parameter | Required | Description                                                                   |
 |-----------|----------|-------------------------------------------------------------------------------|
@@ -1548,7 +1548,7 @@ More functionality details will be added to this section as they become availabl
 
 All the Redis connection parameters in the parent section are also available here.
 There are two new parameters available specific to the rate-limiting functionality.
-Please refer to the documentation for the remaining connection parameters [`here`](#redis).
+Please refer to the documentation for the [remaining connection parameters](#redis).
 
 | Parameter  | Required | Description                                                                            |
 |------------|----------|----------------------------------------------------------------------------------------|
@@ -1582,7 +1582,7 @@ The `loadbalancing` subsection allows configuring a Redis connection specificall
 
 All the Redis connection parameters in the parent section are also available here. The only addition is a new
 `enabled` parameter to toggle the Redis connection without having to comment or remove the whole subsection. Please
-refer to the documentation for the remaining connection parameters [here](#redis).
+refer to the documentation for the [remaining connection parameters](#redis).
 
 | Parameter | Required | Description                                                        |
 |-----------|----------|--------------------------------------------------------------------|

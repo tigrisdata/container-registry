@@ -2,7 +2,7 @@
 ROOTDIR=$(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
 GOLANGCI_VERSION ?= v2.5.0
-DOCSLINT_VERSION ?= registry.gitlab.com/gitlab-org/technical-writing/docs-gitlab-com/lint-markdown:alpine-3.21-vale-3.11.2-markdownlint2-0.17.2-lychee-0.18.1
+DOCSLINT_VERSION ?= registry.gitlab.com/gitlab-org/technical-writing/docs-gitlab-com/lint-markdown:alpine-3.22-vale-3.13.0-markdownlint2-0.19.0-lychee-0.21.0
 
 DOCKER_IMAGE_REGISTRY ?= registry.gitlab.com/gitlab-org/container-registry
 

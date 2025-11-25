@@ -95,7 +95,7 @@ perform backups and restores follow.
 We will be working with the `s3cmd` utility to manage the S3 bucket directly.
 Please ensure that you have this utility installed and configured such that you
 have access to the S3 bucket your container registry is using. This utility
-and installation and usage instructions can be found [here](https://s3tools.org/s3cmd)
+and installation and usage instructions can be found [at this location](https://s3tools.org/s3cmd).
 
 Substitute `registry-bucket` with the name the S3 bucket you are using in all
 the following commands.

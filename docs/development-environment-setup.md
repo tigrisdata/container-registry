@@ -132,7 +132,7 @@ certificates.
 
 In this case, you must instruct Docker to treat your registry as insecure.
 Otherwise, you will not be able to push/pull images. Please follow the
-instructions [here](https://docs.docker.com/registry/insecure/) to configure your
+[instructions](https://docs.docker.com/registry/insecure/) to configure your
 Docker daemon.
 
 ## Verification

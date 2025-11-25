@@ -349,7 +349,7 @@ You have two options, using a fixed hosts list or service discovery. The Redis c
 This option does not rely on service discovery to find the PostgreSQL hosts. Instead, you need to provide a fixed list
 of hosts that should be used as read replicas.
 
-1. Set up GDK following the setup guide [here](https://gitlab.com/gitlab-org/gitlab-development-kit/-/blob/main/doc/howto/database_load_balancing.md);
+1. Set up GDK following the [setup guide](https://gitlab.com/gitlab-org/gitlab-development-kit/-/blob/main/doc/howto/database_load_balancing.md);
 
 1. Run `gdk psql` to get into a `psql` console and then create the registry database:
 
@@ -423,7 +423,7 @@ targeting. We can see that the registry connects to both primary and replica hos
 This option allows automatic discovery of PostgreSQL hosts using DNS lookup queries and SRV records. See the related
 [specification](spec/gitlab/database-load-balancing.md?ref_type=heads#service-discovery) for more details.
 
-1. Set up GDK following the setup guide [here](https://gitlab.com/gitlab-org/gitlab-development-kit/-/blob/main/doc/howto/database_load_balancing_with_service_discovery.md);
+1. Set up GDK following the [setup guide](https://gitlab.com/gitlab-org/gitlab-development-kit/-/blob/main/doc/howto/database_load_balancing_with_service_discovery.md);
 
 1. Lookup the addresses behind the default replicas SRV record in Consul to confirm that service discovery is working:
 
