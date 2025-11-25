@@ -216,3 +216,7 @@ func (l *lockers) FSLock(ctx context.Context) error {
 func (l *lockers) FSUnlock(ctx context.Context) error {
 	return l.FS.Unlock(ctx)
 }
+
+func (l *lockers) FSIsLocked(ctx context.Context) (bool, error) {
+	return l.FS.IsLocked(ctx)
+}

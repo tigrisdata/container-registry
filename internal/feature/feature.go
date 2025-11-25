@@ -49,6 +49,9 @@ var BBMProcess = Feature{
 // Enabling this feature will stop the registry in an unsupported mode. See
 // https://gitlab.com/gitlab-org/container-registry/-/blob/master/docs/spec/gitlab/lockfiles.md
 // for more information.
+// This feature should **not** prevent the management of lockfiles, since lockfiles are stateful, we must
+// take care to manage their state when appropreate. This feature, when enabled, should only prevent the registry
+// from taking action based on the state of existing lockfiles.
 var EnforceLockfiles = Feature{
 	defaultEnabled: true,
 	EnvVariable:    "REGISTRY_FF_ENFORCE_LOCKFILES",

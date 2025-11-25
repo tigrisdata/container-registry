@@ -74,3 +74,70 @@ func TestDatabaseInUseLockerUnLock(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, locked)
 }
+
+func TestFileSystemInUseLockerLock(t *testing.T) {
+	ctx := context.Background()
+	driver := testdriver.New()
+
+	fsLocker := FilesystemInUseLocker{Driver: driver}
+
+	// Check that IsLocked returns false.
+	locked, err := fsLocker.IsLocked(ctx)
+	require.NoError(t, err)
+	require.False(t, locked)
+
+	// Engage the lock.
+	require.NoError(t, fsLocker.Lock(ctx))
+
+	// IsLocked now returns true.
+	locked, err = fsLocker.IsLocked(ctx)
+	require.NoError(t, err)
+	require.True(t, locked)
+
+	// Locking is idempotent.
+	require.NoError(t, fsLocker.Lock(ctx))
+
+	// IsLocked still returns true.
+	locked, err = fsLocker.IsLocked(ctx)
+	require.NoError(t, err)
+	require.True(t, locked)
+}
+
+func TestFilesystemInUseLockerUnLock(t *testing.T) {
+	ctx := context.Background()
+	driver := testdriver.New()
+
+	fsLocker := FilesystemInUseLocker{Driver: driver}
+
+	// Check that the lock is not locked.
+	locked, err := fsLocker.IsLocked(ctx)
+	require.NoError(t, err)
+	require.False(t, locked)
+
+	// Unlocking succeeds even if no lock is present.
+	require.NoError(t, fsLocker.Unlock(ctx))
+
+	// Engage the lock.
+	require.NoError(t, fsLocker.Lock(ctx))
+
+	// IsLocked now returns true
+	locked, err = fsLocker.IsLocked(ctx)
+	require.NoError(t, err)
+	require.True(t, locked)
+
+	// Unlock.
+	require.NoError(t, fsLocker.Unlock(ctx))
+
+	// IsLocked now returns false.
+	locked, err = fsLocker.IsLocked(ctx)
+	require.NoError(t, err)
+	require.False(t, locked)
+
+	// Unlock is idempotent.
+	require.NoError(t, fsLocker.Unlock(ctx))
+
+	// IsLocked still returns false.
+	locked, err = fsLocker.IsLocked(ctx)
+	require.NoError(t, err)
+	require.False(t, locked)
+}
