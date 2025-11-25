@@ -1,3 +1,18 @@
+## [4.32.0](https://gitlab.com/gitlab-org/container-registry/compare/v4.31.0-gitlab...v4.32.0) (2025-11-25)
+
+
+### Features
+
+* add blobs id backfill bbm ([c258f86](https://gitlab.com/gitlab-org/container-registry/commit/c258f865f23cb9ad3f6670b70454632855416769))
+* add repository_count in rename request logs ([3552fe8](https://gitlab.com/gitlab-org/container-registry/commit/3552fe81fd6b56c9357d87e012b74f9c5d59173e))
+
+
+### Bug Fixes
+
+* **datastore:** importer: manage lockfiles when REGISTRY_FF_ENFORCE_LOCKFILES is disabled ([124bacc](https://gitlab.com/gitlab-org/container-registry/commit/124bacc674fe7f8143d51ed3e3b20db640b0f62a))
+* do not skip setting up ignore actions filter when ignored media types filter is not set ([f037796](https://gitlab.com/gitlab-org/container-registry/commit/f03779671bee7c0afd04a344f27622eb4f9aaa15))
+* **registry:** disable REGISTRY_FF_ENFORCE_LOCKFILES by default ([9786bb5](https://gitlab.com/gitlab-org/container-registry/commit/9786bb5e47794515ab73e79b88d485f8a8d462ab))
+
 ## [4.31.0](https://gitlab.com/gitlab-org/container-registry/compare/v4.30.0-gitlab...v4.31.0) (2025-11-05)
 
 
