@@ -127,4 +127,6 @@ type Lockers interface {
 	FSLock(ctx context.Context) error
 	// FSUnlock removes the filesystem-in-use file in the storage driver
 	FSUnlock(ctx context.Context) error
+	// FsIsLocked returns whether the registry is using the filesystem-in-use lockfile
+	FSIsLocked(ctx context.Context) (bool, error)
 }
