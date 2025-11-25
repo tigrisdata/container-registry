@@ -1,0 +1,5 @@
+BEGIN;
+ALTER TABLE pipelines ALTER COLUMN id TYPE BIGINT;
+ALTER TABLE execution_time ALTER COLUMN pipeline_id TYPE BIGINT;
+ALTER TABLE success_ratio ALTER COLUMN pipeline_ids TYPE BIGINT[];
+COMMIT;
