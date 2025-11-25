@@ -573,7 +573,7 @@ func (lb *DBLoadBalancer) ResolveReplicas(ctx context.Context) error {
 	for i := range resolvedDSNs {
 		var err error
 		dsn := &resolvedDSNs[i]
-		l = l.WithFields(logrus.Fields{"db_replica_addr": dsn.Address()})
+		l = l.WithFields(logrus.Fields{"db_host_addr": dsn.Address()})
 
 		// Skip replicas quarantined for connectivity issues
 		if lb.connectivityTracker.IsQuarantined(ctx, dsn.Address()) {
@@ -615,7 +615,7 @@ func (lb *DBLoadBalancer) ResolveReplicas(ctx context.Context) error {
 				// whenever the pool changes. We don't want to cause a panic here, so we'll rely on prometheus.Register
 				// instead of prometheus.MustRegister and gracefully handle an error by logging and reporting it.
 				if err := lb.promRegisterer.Register(collector); err != nil {
-					l.WithError(err).WithFields(log.Fields{"db_replica_addr": r.Address()}).
+					l.WithError(err).WithFields(log.Fields{"db_host_addr": r.Address()}).
 						Error("failed to register collector for database replica metrics")
 					errortracking.Capture(err, errortracking.WithContext(ctx), errortracking.WithStackTrace())
 				}
@@ -637,7 +637,7 @@ func (lb *DBLoadBalancer) ResolveReplicas(ctx context.Context) error {
 			lb.unregisterReplicaMetricsCollector(r)
 
 			// Close handlers for retired replicas
-			l.WithFields(log.Fields{"db_replica_addr": r.Address()}).Info("closing connection handler for retired replica")
+			l.WithFields(log.Fields{"db_host_addr": r.Address()}).Info("closing connection handler for retired replica")
 			if err := r.Close(); err != nil {
 				err = fmt.Errorf("failed to close retired replica %q connection: %w", r.Address(), err)
 				result = multierror.Append(result, err)
@@ -722,7 +722,7 @@ func (lb *DBLoadBalancer) StartLagCheck(ctx context.Context) error {
 
 			for _, replica := range replicas {
 				replicaAddr := replica.Address()
-				l = l.WithFields(log.Fields{"replica_addr": replicaAddr})
+				l = l.WithFields(log.Fields{"db_host_addr": replicaAddr})
 
 				if err := lb.lagTracker.Check(ctx, primaryLSN, replica); err != nil {
 					l.WithError(err).Error("failed to check database replica lag")
@@ -735,7 +735,7 @@ func (lb *DBLoadBalancer) StartLagCheck(ctx context.Context) error {
 // removeReplica removes a replica from the pool and closes its connection.
 func (lb *DBLoadBalancer) removeReplica(ctx context.Context, r *DB) {
 	replicaAddr := r.Address()
-	l := lb.logger(ctx).WithFields(log.Fields{"db_replica_addr": replicaAddr})
+	l := lb.logger(ctx).WithFields(log.Fields{"db_host_addr": replicaAddr})
 
 	lb.replicaMutex.Lock()
 	defer lb.replicaMutex.Unlock()
@@ -956,7 +956,7 @@ func (lb *DBLoadBalancer) UpToDateReplica(ctx context.Context, r *models.Reposit
 	if replica == lb.primary {
 		return lb.primary
 	}
-	l = l.WithFields(log.Fields{"db_replica_addr": replica.Address()})
+	l = l.WithFields(log.Fields{"db_host_addr": replica.Address()})
 
 	// Fetch the primary LSN from cache
 	primaryLSN, err := lb.lsnCache.GetLSN(ctx, r)
@@ -1144,9 +1144,9 @@ func (t *ReplicaLagTracker) set(ctx context.Context, db *DB, timeLag time.Durati
 	info.LastChecked = now
 
 	l := log.GetLogger(log.WithContext(ctx)).WithFields(log.Fields{
-		"db_replica_addr": addr,
-		"lag_time_s":      timeLag.Seconds(),
-		"lag_bytes":       bytesLag,
+		"db_host_addr": addr,
+		"lag_time_s":   timeLag.Seconds(),
+		"lag_bytes":    bytesLag,
 	})
 
 	// Check if replica should be quarantined or reintegrated.
@@ -1217,7 +1217,7 @@ func (*ReplicaLagTracker) CheckTimeLag(ctx context.Context, replica *DB) (time.D
 // Check checks replication lag for a specific replica and stores it.
 func (t *ReplicaLagTracker) Check(ctx context.Context, primaryLSN string, replica *DB) error {
 	l := log.GetLogger(log.WithContext(ctx)).WithFields(log.Fields{
-		"db_replica_addr": replica.Address(),
+		"db_host_addr": replica.Address(),
 	})
 
 	timeLag, err := t.CheckTimeLag(ctx, replica)
@@ -1340,7 +1340,7 @@ func (t *ReplicaConnectivityTracker) RecordFailure(ctx context.Context, replicaA
 	info.LastFailureAt = time.Now()
 
 	l := log.GetLogger(log.WithContext(ctx)).WithFields(log.Fields{
-		"db_replica_addr":      replicaAddr,
+		"db_host_addr":         replicaAddr,
 		"consecutive_failures": info.ConsecutiveFailures,
 	})
 
@@ -1368,7 +1368,7 @@ func (t *ReplicaConnectivityTracker) RecordSuccess(ctx context.Context, replicaA
 	// Reset consecutive failures counter
 	if info.ConsecutiveFailures > 0 {
 		log.GetLogger(log.WithContext(ctx)).WithFields(log.Fields{
-			"db_replica_addr":   replicaAddr,
+			"db_host_addr":      replicaAddr,
 			"previous_failures": info.ConsecutiveFailures,
 		}).Info("replica connectivity recovered, resetting consecutive failures counter")
 		info.ConsecutiveFailures = 0
@@ -1396,7 +1396,7 @@ func (t *ReplicaConnectivityTracker) RecordPoolEvent(ctx context.Context, replic
 	}
 
 	l := log.GetLogger(log.WithContext(ctx)).WithFields(log.Fields{
-		"db_replica_addr":   replicaAddr,
+		"db_host_addr":      replicaAddr,
 		"events_in_window":  len(info.PoolEvents),
 		"window_duration_s": flappingWindowDuration.Seconds(),
 	})
@@ -1447,8 +1447,8 @@ func (*ReplicaConnectivityTracker) quarantine(ctx context.Context, replicaAddr s
 	metrics.ReplicaQuarantinedForConnectivity()
 
 	log.GetLogger(log.WithContext(ctx)).WithFields(log.Fields{
-		"db_replica_addr": replicaAddr,
-		"reason":          reason,
+		"db_host_addr": replicaAddr,
+		"reason":       reason,
 	}).Warn("replica quarantined for connectivity issues")
 }
 
@@ -1464,6 +1464,6 @@ func (*ReplicaConnectivityTracker) reintegrate(ctx context.Context, replicaAddr 
 	metrics.ReplicaReintegratedFromConnectivity()
 
 	log.GetLogger(log.WithContext(ctx)).WithFields(log.Fields{
-		"db_replica_addr": replicaAddr,
+		"db_host_addr": replicaAddr,
 	}).Info("replica reintegrated after quarantine period expired")
 }
