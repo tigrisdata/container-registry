@@ -134,8 +134,8 @@ func (s *DBStatusChecker) HealthCheck() error {
 			// had time to ping it yet. We have to assume it's healthy for now. Log
 			// it just in case but continue.
 			s.logger.WithFields(log.Fields{
-				"path":            "/debug/health",
-				"db_replica_addr": address,
+				"path":         "/debug/health",
+				"db_host_addr": address,
 			}).Info("status unknown for db replica, haven't pinged it yet, returning OK")
 			continue
 		}
