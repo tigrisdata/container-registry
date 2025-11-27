@@ -2,7 +2,6 @@ package metrics
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"sync"
@@ -37,7 +36,7 @@ func init() {
 }
 
 // BBMProgressExecutor runs a query and returns rows for scanning.
-type BBMProgressExecutor func(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+type BBMProgressExecutor func(ctx context.Context) ([]*models.BackgroundMigrationProgress, error)
 
 // BBMProgressCollector periodically collects BBM progress metrics with distributed locking.
 type BBMProgressCollector struct {
@@ -184,111 +183,28 @@ func (c *BBMProgressCollector) run(ctx context.Context) {
 }
 
 func (c *BBMProgressCollector) collect(ctx context.Context) {
-	defer InstrumentQuery("bbm_collect_progress")()
-	// Use a single SQL query to get progress inputs per migration
-	// status values are stored as ints in the DB; models.BackgroundMigrationFinished indicates finished status
-	q := `SELECT
-                m.id,
-                m.name,
-                m.batch_size,
-                m.status,
-                m.total_tuple_count,
-                COALESCE(j.finished_jobs, 0) AS finished_jobs
-            FROM
-                batched_background_migrations m
-                LEFT JOIN (
-                    SELECT
-                        batched_background_migration_id AS bbm_id,
-                        COUNT(*) AS finished_jobs
-                    FROM
-                        batched_background_migration_jobs
-                    WHERE
-                        status = $1
-                    GROUP BY
-                        batched_background_migration_id) j ON j.bbm_id = m.id
-            ORDER BY
-                m.id`
-
-	rows, err := c.executor(ctx, q, int(models.BackgroundMigrationFinished))
+	progressItems, err := c.executor(ctx)
 	if err != nil {
 		c.logger.WithError(err).Error("failed to fetch bbm progress rows")
 		return
 	}
-	defer rows.Close()
 
-	for rows.Next() {
-		var (
-			id           int
-			name         string
-			batchSize    int
-			statusInt    int
-			total        sql.NullInt64
-			finishedJobs int64
-		)
-		if err := rows.Scan(&id, &name, &batchSize, &statusInt, &total, &finishedJobs); err != nil {
-			c.logger.WithError(err).Error("failed to scan bbm progress row")
-			continue
-		}
-
-		status := models.BackgroundMigrationStatus(statusInt).String()
-
-		// Default: only report progress when total_tuple_count present; finished always 100.
-		var (
-			progress float64
-			capped   bool
-		)
-		switch models.BackgroundMigrationStatus(statusInt) {
-		case models.BackgroundMigrationFinished:
-			progress = 100.0
-		default:
-			p, ok, c := estimateProgress(total, finishedJobs, batchSize)
-			if !ok {
-				continue
-			}
-			progress = p
-			capped = c
-		}
-
+	for _, v := range progressItems {
 		c.logger.WithFields(dlog.Fields{
-			"capped":            capped,
-			"migration_id":      id,
-			"migration_name":    name,
-			"bbm_status":        status,
-			"batch_size":        batchSize,
-			"finished_jobs":     finishedJobs,
-			"total_tuple_count": total.Int64,
-			"progress_percent":  progress,
+			"capped":            v.Capped,
+			"migration_id":      v.MigrationId,
+			"migration_name":    v.MigrationName,
+			"bbm_status":        v.Status,
+			"batch_size":        v.BatchSize,
+			"finished_jobs":     v.FinishedJobs,
+			"total_tuple_count": v.TotalTupleCount,
+			"progress_percent":  v.Progress,
 		}).Info("bbm progress")
 
-		bbmProgressGauge.WithLabelValues(fmt.Sprint(id), name, status).Set(progress)
+		bbmProgressGauge.
+			WithLabelValues(fmt.Sprint(v.MigrationId), v.MigrationName, v.Status).
+			Set(v.Progress)
 	}
-
-	if err := rows.Err(); err != nil {
-		c.logger.WithError(err).Error("error iterating bbm progress rows")
-	}
-}
-
-// estimateProgress derives progress percent from finished job count and batch size.
-// Returns (progress, ok, capped):
-//   - ok is false when total is NULL or <= 0, in which case no progress is reported.
-//   - progress is min(finishedJobs*batchSize, total)/total * 100.
-//   - capped is true when computed progress would reach 100%; progress is capped at 99.9
-//     to reserve 100% for explicitly finished migrations.
-func estimateProgress(total sql.NullInt64, finishedJobs int64, batchSize int) (float64, bool, bool) {
-	capped := false
-	if !total.Valid || total.Int64 <= 0 {
-		return 0, false, capped
-	}
-	processed := finishedJobs * int64(batchSize)
-	if processed > total.Int64 {
-		processed = total.Int64
-	}
-	progress := (float64(processed) / float64(total.Int64)) * 100.0
-	if progress >= 100.0 {
-		progress = 99.9
-		capped = true
-	}
-	return progress, true, capped
 }
 
 // releaseLockWithLog releases the distributed lock and logs both refresh and release errors.

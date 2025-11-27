@@ -352,6 +352,21 @@ func (mr *MockBackgroundMigrationStoreMockRecorder) Pause(ctx any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Pause", reflect.TypeOf((*MockBackgroundMigrationStore)(nil).Pause), ctx)
 }
 
+// Progress mocks base method.
+func (m *MockBackgroundMigrationStore) Progress(ctx context.Context) ([]*models.BackgroundMigrationProgress, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Progress", ctx)
+	ret0, _ := ret[0].([]*models.BackgroundMigrationProgress)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Progress indicates an expected call of Progress.
+func (mr *MockBackgroundMigrationStoreMockRecorder) Progress(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Progress", reflect.TypeOf((*MockBackgroundMigrationStore)(nil).Progress), ctx)
+}
+
 // Resume mocks base method.
 func (m *MockBackgroundMigrationStore) Resume(ctx context.Context) error {
 	m.ctrl.T.Helper()

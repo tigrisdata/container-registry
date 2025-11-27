@@ -558,7 +558,7 @@ func TestBackgroundMigrationStore_IncrementJobAttempts(t *testing.T) {
 		BBMID:    2,
 		Status:   models.BackgroundMigrationActive,
 		StartID:  1,
-		EndID:    40,
+		EndID:    20,
 		Attempts: 2, // attempt incremented from 1 to 2
 	}
 	require.Equal(t, expected, j)
@@ -927,10 +927,10 @@ func TestBackgroundMigrationStore_GetPendingWALCount(t *testing.T) {
 
 func TestBackgroundMigrationStore_HasNullIndex(t *testing.T) {
 	// Create a temporary table in the default schema (no schema prefix in identifier)
-	_, err := suite.db.Exec(`CREATE TABLE IF NOT EXISTS tmp_nullidx_test (id INT PRIMARY KEY, val INT NULL)`)
+	_, err := suite.db.Exec(`CREATE TABLE tmp_nullidx_test (id INT PRIMARY KEY, val INT NULL)`)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		_, _ = suite.db.Exec(`DROP TABLE IF EXISTS tmp_nulltest`)
+		_, _ = suite.db.Exec(`DROP TABLE IF EXISTS tmp_nullidx_test`)
 	})
 
 	s := datastore.NewBackgroundMigrationStore(suite.db)
@@ -960,7 +960,7 @@ func TestBackgroundMigrationStore_HasNullIndex(t *testing.T) {
 
 func TestBackgroundMigrationStore_HasNullValues_SimpleTable(t *testing.T) {
 	// Create a temporary table in the default schema (no schema prefix in identifier)
-	_, err := suite.db.Exec(`CREATE TABLE IF NOT EXISTS tmp_nulltest (id INT PRIMARY KEY, val INT NULL)`)
+	_, err := suite.db.Exec(`CREATE TABLE tmp_nulltest (id INT PRIMARY KEY, val INT NULL)`)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_, _ = suite.db.Exec(`DROP TABLE IF EXISTS tmp_nulltest`)
@@ -992,4 +992,212 @@ func TestBackgroundMigrationStore_HasNullValues_InvalidIdentifier(t *testing.T) 
 	// Table name with a quote should be rejected by identifier validation
 	_, err := s.HasNullValues(suite.ctx, `bad"name`, "val")
 	require.Error(t, err)
+}
+
+func TestBackgroundMigrationStore_Progress(t *testing.T) {
+	reloadBackgroundMigrationFixtures(t)
+	reloadBackgroundMigrationJobFixtures(t)
+
+	s := datastore.NewBackgroundMigrationStore(suite.db)
+	progress, err := s.Progress(suite.ctx)
+	require.NoError(t, err)
+	require.NotNil(t, progress)
+
+	// see testdata/fixtures/batched_background_migrations.sql and
+	// testdata/fixtures/batched_background_migration_jobs.sql
+	// Migration 1: finished status, should always be 100%
+	// Migration 2: active, 1 finished job, batch_size=1, total_tuple_count=NULL (should be skipped)
+	// Migration 3: active, 0 finished jobs (should be skipped due to NULL total_tuple_count)
+	// Migration 4: running, 0 finished jobs (should be skipped due to NULL total_tuple_count)
+	// Migration 5: paused, 0 finished jobs (should be skipped due to NULL total_tuple_count)
+
+	// Only migration 1 should be in results (finished status)
+	require.Len(t, progress, 1)
+
+	// Verify migration 1 details
+	require.Equal(t, 1, progress[0].MigrationId)
+	require.Equal(t, "CopyMediaTypesIDToNewIDColumn", progress[0].MigrationName)
+	require.Equal(t, "finished", progress[0].Status)
+	require.Equal(t, 20, progress[0].BatchSize)
+	require.Equal(t, int64(2), progress[0].FinishedJobs)
+	require.Equal(t, int64(0), progress[0].TotalTupleCount)
+	require.InDelta(t, 100.0, progress[0].Progress, 0.0001)
+	require.False(t, progress[0].Capped)
+}
+
+func TestBackgroundMigrationStore_Progress_WithTotalTupleCount(t *testing.T) {
+	reloadBackgroundMigrationFixtures(t)
+	reloadBackgroundMigrationJobFixtures(t)
+
+	s := datastore.NewBackgroundMigrationStore(suite.db)
+
+	// Set total_tuple_count for migration 2 to enable progress calculation
+	const migrationID = 2
+	const totalTuples int64 = 100
+	require.NoError(t, s.SetTotalTupleCount(suite.ctx, migrationID, totalTuples))
+
+	progress, err := s.Progress(suite.ctx)
+	require.NoError(t, err)
+	require.NotNil(t, progress)
+
+	// Should now have 2 migrations: 1 (finished) and 2 (with total_tuple_count)
+	require.Len(t, progress, 2)
+
+	// Find migration 2 in results
+	var mig2 *models.BackgroundMigrationProgress
+	for _, p := range progress {
+		if p.MigrationId == migrationID {
+			mig2 = p
+			break
+		}
+	}
+	require.NotNil(t, mig2)
+
+	// Migration 2: 1 finished job, batch_size=1, total=100
+	// Progress = (1 * 1) / 100 * 100 = 1%
+	require.Equal(t, "CopyBlobIDToNewIDColumn", mig2.MigrationName)
+	require.Equal(t, "active", mig2.Status)
+	require.Equal(t, 1, mig2.BatchSize)
+	require.Equal(t, int64(1), mig2.FinishedJobs)
+	require.Equal(t, totalTuples, mig2.TotalTupleCount)
+	require.InDelta(t, 1.0, mig2.Progress, 0.001)
+	require.False(t, mig2.Capped)
+}
+
+func TestBackgroundMigrationStore_Progress_CappedAt99Point9(t *testing.T) {
+	reloadBackgroundMigrationFixtures(t)
+	reloadBackgroundMigrationJobFixtures(t)
+
+	s := datastore.NewBackgroundMigrationStore(suite.db)
+
+	// Set total_tuple_count for migration 3 to test capping behavior
+	const migrationID = 3
+	const totalTuples int64 = 10
+	require.NoError(t, s.SetTotalTupleCount(suite.ctx, migrationID, totalTuples))
+
+	// Create 10 finished jobs with batch_size=1, which would calculate to 100%
+	for i := 1; i <= 10; i++ {
+		job := &models.BackgroundMigrationJob{
+			BBMID:   migrationID,
+			StartID: i,
+			EndID:   i,
+		}
+		require.NoError(t, s.CreateNewJob(suite.ctx, job))
+		// Update status to finished
+		job.Status = models.BackgroundMigrationFinished
+		require.NoError(t, s.UpdateJobStatus(suite.ctx, job))
+	}
+
+	progress, err := s.Progress(suite.ctx)
+	require.NoError(t, err)
+
+	// Find migration 3 in results
+	var mig3 *models.BackgroundMigrationProgress
+	for _, p := range progress {
+		if p.MigrationId == migrationID {
+			mig3 = p
+			break
+		}
+	}
+	require.NotNil(t, mig3)
+
+	// Progress should be capped at 99.9% (not 100% since migration is still active)
+	require.Equal(t, 1, mig3.BatchSize) // batch_size from fixtures is 1, but we're checking the fixture value
+	require.Equal(t, int64(10), mig3.FinishedJobs)
+	require.Equal(t, totalTuples, mig3.TotalTupleCount)
+	require.InDelta(t, 99.9, mig3.Progress, 0.001)
+	require.True(t, mig3.Capped)
+}
+
+func TestBackgroundMigrationStore_Progress_ProcessedExceedsTotal(t *testing.T) {
+	reloadBackgroundMigrationFixtures(t)
+	reloadBackgroundMigrationJobFixtures(t)
+
+	s := datastore.NewBackgroundMigrationStore(suite.db)
+
+	// Set total_tuple_count lower than what finished jobs would process
+	const migrationID = 2
+	const totalTuples int64 = 50
+	require.NoError(t, s.SetTotalTupleCount(suite.ctx, migrationID, totalTuples))
+
+	// Create 100 finished jobs with batch_size=1
+	// This simulates processed (100) > total (50)
+	for i := 5; i < 106; i++ {
+		job := &models.BackgroundMigrationJob{
+			BBMID:   migrationID,
+			StartID: i + 1,
+			EndID:   i + 1,
+		}
+		require.NoError(t, s.CreateNewJob(suite.ctx, job))
+		// Update status to finished
+		job.Status = models.BackgroundMigrationFinished
+		require.NoError(t, s.UpdateJobStatus(suite.ctx, job))
+	}
+
+	progress, err := s.Progress(suite.ctx)
+	require.NoError(t, err)
+
+	// Find migration 2 in results
+	var mig2 *models.BackgroundMigrationProgress
+	for _, p := range progress {
+		if p.MigrationId == migrationID {
+			mig2 = p
+			break
+		}
+	}
+	require.NotNil(t, mig2)
+
+	// Progress should be capped at 99.9% because processed is clamped to total
+	// and the result would be 100%
+	require.Equal(t, int64(102), mig2.FinishedJobs) // 2 from fixture + 100 created
+	require.Equal(t, totalTuples, mig2.TotalTupleCount)
+	require.InDelta(t, 99.9, mig2.Progress, 0.0001)
+	require.True(t, mig2.Capped)
+}
+
+func TestBackgroundMigrationStore_Progress_NoMigrations(t *testing.T) {
+	unloadBackgroundMigrationFixtures(t)
+
+	s := datastore.NewBackgroundMigrationStore(suite.db)
+	progress, err := s.Progress(suite.ctx)
+	require.NoError(t, err)
+	require.Empty(t, progress)
+}
+
+func TestBackgroundMigrationStore_Progress_MultipleStatuses(t *testing.T) {
+	reloadBackgroundMigrationFixtures(t)
+	reloadBackgroundMigrationJobFixtures(t)
+
+	s := datastore.NewBackgroundMigrationStore(suite.db)
+
+	// Set total_tuple_count for migrations 2, 3, 4, 5 to test different statuses
+	for _, id := range []int{2, 3, 4, 5} {
+		require.NoError(t, s.SetTotalTupleCount(suite.ctx, id, 100))
+	}
+
+	progress, err := s.Progress(suite.ctx)
+	require.NoError(t, err)
+
+	// Should have all 5 migrations now
+	require.Len(t, progress, 5)
+
+	// Verify each migration has correct status
+	statusMap := make(map[int]string)
+	for _, p := range progress {
+		statusMap[p.MigrationId] = p.Status
+	}
+
+	require.Equal(t, "finished", statusMap[1])
+	require.Equal(t, "active", statusMap[2])
+	require.Equal(t, "active", statusMap[3])
+	require.Equal(t, "running", statusMap[4])
+	require.Equal(t, "paused", statusMap[5])
+
+	// Verify finished migration is always 100%
+	for _, p := range progress {
+		if p.MigrationId == 1 {
+			require.InDelta(t, 100.0, p.Progress, 0.001)
+			require.False(t, p.Capped)
+		}
+	}
 }

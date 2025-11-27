@@ -221,6 +221,18 @@ type BackgroundMigration struct {
 	TotalTupleCount  sql.NullInt64
 }
 
+// BackgroundMigrationProgress is the representation of a BBM progress.
+type BackgroundMigrationProgress struct {
+	Capped          bool
+	MigrationId     int
+	MigrationName   string
+	Status          string
+	BatchSize       int
+	FinishedJobs    int64
+	TotalTupleCount int64
+	Progress        float64
+}
+
 // BackgroundMigrations is a slice of BackgroundMigration pointers.
 type BackgroundMigrations []*BackgroundMigration
 
