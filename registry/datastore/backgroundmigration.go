@@ -85,6 +85,8 @@ type BackgroundMigrationStore interface {
 	SetTotalTupleCount(ctx context.Context, id int, total int64) error
 	// EstimateTotalTupleCount estimates total tuples to process for a BBM using reltuples and pg_stats
 	EstimateTotalTupleCount(ctx context.Context, bbm *models.BackgroundMigration) (int64, error)
+	// Progress estimates progress of BBM migrations
+	Progress(ctx context.Context) ([]*models.BackgroundMigrationProgress, error)
 }
 
 // NewBackgroundMigrationStore builds a new backgroundMigrationStore.
@@ -317,6 +319,116 @@ func (bms *backgroundMigrationStore) FindById(ctx context.Context, id int) (*mod
 	row := bms.db.QueryRowContext(ctx, q, id)
 
 	return scanBackgroundMigration(row)
+}
+
+// Progress estimates progress of BBM migrations.
+func (bms *backgroundMigrationStore) Progress(ctx context.Context) ([]*models.BackgroundMigrationProgress, error) {
+	defer metrics.InstrumentQuery("bbm_collect_progress")()
+
+	// Use a single SQL query to get progress inputs per migration
+	// status values are stored as ints in the DB; models.BackgroundMigrationFinished indicates finished status
+	q := `SELECT
+                m.id,
+                m.name,
+                m.batch_size,
+                m.status,
+                m.total_tuple_count,
+                COALESCE(j.finished_jobs, 0) AS finished_jobs
+            FROM
+                batched_background_migrations m
+                LEFT JOIN (
+                    SELECT
+                        batched_background_migration_id AS bbm_id,
+                        COUNT(*) AS finished_jobs
+                    FROM
+                        batched_background_migration_jobs
+                    WHERE
+                        status = $1
+                    GROUP BY
+                        batched_background_migration_id) j ON j.bbm_id = m.id
+            ORDER BY
+                m.id`
+
+	rows, err := bms.db.QueryContext(ctx, q, int(models.BackgroundMigrationFinished))
+	if err != nil {
+		return nil, fmt.Errorf("querying background migrations progress: %w", err)
+	}
+	defer rows.Close()
+
+	res := make([]*models.BackgroundMigrationProgress, 0)
+
+	for rows.Next() {
+		var (
+			id           int
+			name         string
+			batchSize    int
+			statusInt    int
+			total        sql.NullInt64
+			finishedJobs int64
+		)
+		if err := rows.Scan(&id, &name, &batchSize, &statusInt, &total, &finishedJobs); err != nil {
+			return nil, fmt.Errorf("scanning background migrations progress row: %w", err)
+		}
+
+		status := models.BackgroundMigrationStatus(statusInt).String()
+
+		// Default: only report progress when total_tuple_count present; finished always 100.
+		var (
+			progress float64
+			capped   bool
+		)
+		switch models.BackgroundMigrationStatus(statusInt) {
+		case models.BackgroundMigrationFinished:
+			progress = 100.0
+		default:
+			p, ok, c := estimateProgress(total, finishedJobs, batchSize)
+			if !ok {
+				continue
+			}
+			progress = p
+			capped = c
+		}
+
+		res = append(res, &models.BackgroundMigrationProgress{
+			Capped:          capped,
+			MigrationId:     id,
+			MigrationName:   name,
+			Status:          status,
+			BatchSize:       batchSize,
+			FinishedJobs:    finishedJobs,
+			TotalTupleCount: total.Int64,
+			Progress:        progress,
+		})
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating bbm progress rows: %w", err)
+	}
+
+	return res, nil
+}
+
+// estimateProgress derives progress percent from finished job count and batch size.
+// Returns (progress, ok, capped):
+//   - ok is false when total is NULL or <= 0, in which case no progress is reported.
+//   - progress is min(finishedJobs*batchSize, total)/total * 100.
+//   - capped is true when computed progress would reach 100%; progress is capped at 99.9
+//     to reserve 100% for explicitly finished migrations.
+func estimateProgress(total sql.NullInt64, finishedJobs int64, batchSize int) (float64, bool, bool) {
+	capped := false
+	if !total.Valid || total.Int64 <= 0 {
+		return 0, false, capped
+	}
+	processed := finishedJobs * int64(batchSize)
+	if processed > total.Int64 {
+		processed = total.Int64
+	}
+	progress := (float64(processed) / float64(total.Int64)) * 100.0
+	if progress >= 100.0 {
+		progress = 99.9
+		capped = true
+	}
+	return progress, true, capped
 }
 
 // FindNextByStatus finds the next BackgroundMigration with status `status`.

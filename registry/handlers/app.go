@@ -2342,8 +2342,8 @@ func (app *App) initializeBBMProgressCollector(config *configuration.Configurati
 	}
 
 	// Executor returning rows for scanning
-	executor := func(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
-		return app.db.Primary().QueryContext(ctx, query, args...)
+	executor := func(ctx context.Context) ([]*models.BackgroundMigrationProgress, error) {
+		return datastore.NewBackgroundMigrationStore(app.db.Primary()).Progress(ctx)
 	}
 
 	var pOpts []dsmetrics.ProgressOption

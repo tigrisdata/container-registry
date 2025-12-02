@@ -3,12 +3,10 @@ package metrics
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"fmt"
 	"testing"
 	"time"
 
-	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/alicebob/miniredis/v2"
 	dmetrics "github.com/docker/distribution/metrics"
 	"github.com/docker/distribution/registry/datastore/models"
@@ -17,24 +15,6 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 )
-
-// helper to create an executor backed by sqlmock that returns provided rows
-func newSQLMockExecutor(rows *sqlmock.Rows) (BBMProgressExecutor, func(), sqlmock.Sqlmock, error) {
-	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	// Match any query and return given rows once
-	mock.ExpectQuery(".*").WillReturnRows(rows)
-
-	exec := func(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
-		return db.QueryContext(ctx, query, args...)
-	}
-
-	cleanup := func() { _ = db.Close() }
-	return exec, cleanup, mock, nil
-}
 
 // helper to build a redis client backed by miniredis
 func newMiniRedisClient(t *testing.T) (*miniredis.Miniredis, redis.UniversalClient) {
@@ -50,7 +30,7 @@ func TestNewBBMProgressCollector_DefaultsAndOptions(t *testing.T) {
 
 	t.Run("with defaults", func(t *testing.T) {
 		// dummy executor not used here
-		exec := func(_ context.Context, _ string, _ ...any) (*sql.Rows, error) { return nil, nil }
+		exec := func(_ context.Context) ([]*models.BackgroundMigrationProgress, error) { return nil, nil }
 		c, err := NewBBMProgressCollector(exec, client)
 		require.NoError(t, err)
 		require.NotNil(t, c)
@@ -59,7 +39,7 @@ func TestNewBBMProgressCollector_DefaultsAndOptions(t *testing.T) {
 	})
 
 	t.Run("with custom options", func(t *testing.T) {
-		exec := func(_ context.Context, _ string, _ ...any) (*sql.Rows, error) { return nil, nil }
+		exec := func(_ context.Context) ([]*models.BackgroundMigrationProgress, error) { return nil, nil }
 		customInterval := 5 * time.Second
 		customLease := 12 * time.Second
 		c, err := NewBBMProgressCollector(exec, client, WithProgressInterval(customInterval), WithProgressLeaseDuration(customLease))
@@ -69,7 +49,7 @@ func TestNewBBMProgressCollector_DefaultsAndOptions(t *testing.T) {
 	})
 
 	t.Run("validation: lease <= interval", func(t *testing.T) {
-		exec := func(_ context.Context, _ string, _ ...any) (*sql.Rows, error) { return nil, nil }
+		exec := func(_ context.Context) ([]*models.BackgroundMigrationProgress, error) { return nil, nil }
 		_, err := NewBBMProgressCollector(exec, client, WithProgressInterval(10*time.Second), WithProgressLeaseDuration(10*time.Second))
 		require.EqualError(t, err, "bbm metrics lease duration (10s) must be longer than interval (10s)")
 
@@ -85,16 +65,43 @@ func TestBBMProgressCollector_Collect_ComputesProgress(t *testing.T) {
 	reg.MustRegister(bbmProgressGauge)
 	bbmProgressGauge.Reset()
 
-	// rows: columns must match scan order
-	rows := sqlmock.NewRows([]string{"id", "name", "batch_size", "status", "total_tuple_count", "finished_jobs"}).
-		AddRow(1, "mig1", 10, int(models.BackgroundMigrationRunning), sql.NullInt64{Int64: 100, Valid: true}, int64(3)).
-		AddRow(2, "mig2", 10, int(models.BackgroundMigrationFinished), sql.NullInt64{Int64: 0, Valid: true}, int64(7)).
-		AddRow(3, "mig3", 10, int(models.BackgroundMigrationRunning), sql.NullInt64{Int64: 100, Valid: true}, int64(10)).
-		AddRow(4, "mig4", 10, int(models.BackgroundMigrationRunning), sql.NullInt64{Valid: false}, int64(5))
+	// Create mock progress data
+	progressData := []*models.BackgroundMigrationProgress{
+		{
+			MigrationId:     1,
+			MigrationName:   "mig1",
+			BatchSize:       10,
+			Status:          "running",
+			TotalTupleCount: 100,
+			FinishedJobs:    3,
+			Progress:        30.0,
+			Capped:          false,
+		},
+		{
+			MigrationId:     2,
+			MigrationName:   "mig2",
+			BatchSize:       10,
+			Status:          "finished",
+			TotalTupleCount: 0,
+			FinishedJobs:    7,
+			Progress:        100.0,
+			Capped:          false,
+		},
+		{
+			MigrationId:     3,
+			MigrationName:   "mig3",
+			BatchSize:       10,
+			Status:          "running",
+			TotalTupleCount: 100,
+			FinishedJobs:    10,
+			Progress:        99.9,
+			Capped:          true,
+		},
+	}
 
-	exec, cleanup, _, err := newSQLMockExecutor(rows)
-	require.NoError(t, err)
-	defer cleanup()
+	exec := func(_ context.Context) ([]*models.BackgroundMigrationProgress, error) {
+		return progressData, nil
+	}
 
 	// redis not used here beyond construction
 	mr, client := newMiniRedisClient(t)
@@ -133,14 +140,9 @@ func TestBBMProgressCollector_StartStop_WithLock(t *testing.T) {
 	defer mr.Close()
 
 	var calls int
-	exec := func(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
+	exec := func(_ context.Context) ([]*models.BackgroundMigrationProgress, error) {
 		calls++
-		// create a fresh mock DB per call and expect a single query
-		db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
-		require.NoError(t, err)
-		r := sqlmock.NewRows([]string{"id", "name", "batch_size", "status", "total_tuple_count", "finished_jobs"})
-		mock.ExpectQuery(".*").WillReturnRows(r)
-		return db.QueryContext(ctx, query, args...)
+		return make([]*models.BackgroundMigrationProgress, 0), nil
 	}
 
 	// Use short timings for test
@@ -163,15 +165,11 @@ func TestBBMProgressCollector_LeaderExclusivity(t *testing.T) {
 	mr, client := newMiniRedisClient(t)
 	defer mr.Close()
 
-	// empty rows; build executor that supports arbitrary calls
+	// build executor that supports arbitrary calls
 	mkExec := func(counter *int) BBMProgressExecutor {
-		return func(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
+		return func(_ context.Context) ([]*models.BackgroundMigrationProgress, error) {
 			*counter++
-			db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
-			require.NoError(t, err)
-			r := sqlmock.NewRows([]string{"id", "name", "batch_size", "status", "total_tuple_count", "finished_jobs"})
-			mock.ExpectQuery(".*").WillReturnRows(r)
-			return db.QueryContext(ctx, query, args...)
+			return make([]*models.BackgroundMigrationProgress, 0), nil
 		}
 	}
 
