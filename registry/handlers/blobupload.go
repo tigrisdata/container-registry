@@ -248,6 +248,11 @@ func dbPutBlobUploadComplete(ctx context.Context, db *datastore.DB, repoPath str
 		return fmt.Errorf("committing database transaction: %w", err)
 	}
 
+	// Set the repository in the cache outside of the transaction.
+	if repoCache != nil {
+		repoCache.Set(ctx, r)
+	}
+
 	return nil
 }
 

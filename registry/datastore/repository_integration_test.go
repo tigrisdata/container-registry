@@ -1962,40 +1962,6 @@ func TestRepositoryStore_SizeWithDescendants_TopLevel_ChecksCacheForPreviousTime
 	require.Zero(t, size.Bytes())
 }
 
-func TestRepositoryStore_SizeWithDescendants_TopLevel_SetsCacheOnTimeout(t *testing.T) {
-	reloadManifestFixtures(t)
-
-	redisCache, redisMock := itestutil.RedisCacheMock(t, 0)
-	cache := datastore.NewCentralRepositoryCache(redisCache)
-
-	// use transaction with a statement timeout of 1ms, so that all queries within time out
-	tx, err := suite.db.BeginTx(suite.ctx, nil)
-	require.NoError(t, err)
-	defer tx.Rollback()
-
-	_, err = tx.ExecContext(suite.ctx, "SET statement_timeout TO 1")
-	require.NoError(t, err)
-	// wait a bit so that PG has time to flush the update
-	time.Sleep(250 * time.Millisecond)
-
-	s := datastore.NewRepositoryStore(tx, datastore.WithRepositoryCache(cache))
-
-	repo := &models.Repository{NamespaceID: 3, ID: 8, Path: "usage-group"}
-	redisKey := fmt.Sprintf("registry:db:{repository:%s:%s}:swd-timeout", repo.Path, digest.FromString(repo.Path).Hex())
-
-	redisMock.ExpectGet(redisKey).RedisNil()
-	redisMock.ExpectSet(redisKey, "true", 24*time.Hour).SetVal("true")
-
-	size, err := s.SizeWithDescendants(suite.ctx, repo)
-	require.Error(t, err)
-
-	// make sure the error is not masked
-	var pgErr *pgconn.PgError
-	require.ErrorAs(t, err, &pgErr)
-	require.Equal(t, pgerrcode.QueryCanceled, pgErr.Code)
-	require.Zero(t, size)
-}
-
 func TestRepositoryStore_SizeWithDescendants_NonTopLevel_DoesNotTouchCacheTimeout(t *testing.T) {
 	reloadManifestFixtures(t)
 

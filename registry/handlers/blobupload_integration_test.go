@@ -257,7 +257,6 @@ func TestDBPutBlobUploadComplete_NonExistantRepoAndBlob(t *testing.T) {
 	repoCacheMock := mocks.NewMockRepositoryCache(ctrl)
 	gomock.InOrder(
 		repoCacheMock.EXPECT().Get(env.ctx, repoName).Return(nil).Times(3),
-		repoCacheMock.EXPECT().Set(env.ctx, (*models.Repository)(nil)).Times(1),
 		repoCacheMock.EXPECT().Set(env.ctx, gomock.Cond(gomockMatchRepoFn(repoName))).Times(1),
 	)
 
@@ -287,7 +286,6 @@ func TestDBPutBlobUploadComplete_BlobExistsAndNonExistentRepo(t *testing.T) {
 	repoCacheMock := mocks.NewMockRepositoryCache(ctrl)
 	gomock.InOrder(
 		repoCacheMock.EXPECT().Get(env.ctx, repoName).Return(nil).Times(3),
-		repoCacheMock.EXPECT().Set(env.ctx, (*models.Repository)(nil)).Times(1),
 		repoCacheMock.EXPECT().Set(env.ctx, gomock.Cond(gomockMatchRepoFn(repoName))).Times(1),
 	)
 
@@ -315,7 +313,6 @@ func TestDBPutBlobUploadComplete_RepoExistsAndBlobDoesNot(t *testing.T) {
 	repoCacheMock := mocks.NewMockRepositoryCache(ctrl)
 	gomock.InOrder(
 		repoCacheMock.EXPECT().Get(env.ctx, repoName).Return(nil).Times(3),
-		repoCacheMock.EXPECT().Set(env.ctx, gomock.Cond(gomockMatchRepoFn(repoName))).Times(1),
 		repoCacheMock.EXPECT().Set(env.ctx, gomock.Cond(gomockMatchRepoFn(repoName))).Times(1),
 	)
 
@@ -346,7 +343,6 @@ func TestDBPutBlobUploadComplete_BothBlobAndRepoExistsButNotLinked(t *testing.T)
 	gomock.InOrder(
 		repoCacheMock.EXPECT().Get(env.ctx, repoName).Return(nil).Times(3),
 		repoCacheMock.EXPECT().Set(env.ctx, gomock.Cond(gomockMatchRepoFn(repoName))).Times(1),
-		repoCacheMock.EXPECT().Set(env.ctx, gomock.Cond(gomockMatchRepoFn(repoName))).Times(1),
 	)
 
 	err := dbPutBlobUploadComplete(env.ctx, env.db, repoName, desc, repoCacheMock)
@@ -374,7 +370,6 @@ func TestDBPutBlobUploadComplete_BothBlobAndRepoExistsAndLinked(t *testing.T) {
 	repoCacheMock := mocks.NewMockRepositoryCache(ctrl)
 	gomock.InOrder(
 		repoCacheMock.EXPECT().Get(env.ctx, repoName).Return(nil).Times(3),
-		repoCacheMock.EXPECT().Set(env.ctx, gomock.Cond(gomockMatchRepoFn(repoName))).Times(1),
 		repoCacheMock.EXPECT().Set(env.ctx, gomock.Cond(gomockMatchRepoFn(repoName))).Times(1),
 	)
 
