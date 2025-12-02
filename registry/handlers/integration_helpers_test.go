@@ -172,6 +172,12 @@ func withWebhookNotifications(notifCfg configuration.Notifications) configOpt {
 	}
 }
 
+func withLogLevel(ll configuration.Loglevel) configOpt {
+	return func(config *configuration.Configuration) {
+		config.Log.Level = ll
+	}
+}
+
 type issuerProps struct {
 	Realm      string
 	Service    string
@@ -414,7 +420,7 @@ func newTestEnv(t *testing.T, opts ...configOpt) *testEnv {
 }
 
 func newTestEnvWithConfig(t *testing.T, config *configuration.Configuration) *testEnv {
-	ctx := testutil.NewContextWithLogger(t)
+	ctx := testutil.NewContextWithLogger(t, testutil.WithLogLevel(config.Log.Level.String()))
 
 	// The API test needs access to the database only to clean it up during
 	// shutdown so that environments come up with a fresh copy of the database.
