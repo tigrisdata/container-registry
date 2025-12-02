@@ -912,7 +912,12 @@ func dbTagManifest(ctx context.Context, db datastore.Handler, cache datastore.Re
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("committing database transaction: %w", err)
 	}
-	cache.InvalidateSize(ctx, dbRepo)
+
+	// Only invalidate and Set the repository in the cache outside of the transaction.
+	if cache != nil {
+		cache.Set(ctx, dbRepo)
+		cache.InvalidateSize(ctx, dbRepo)
+	}
 	return nil
 }
 
@@ -1477,6 +1482,11 @@ func dbDeleteManifest(ctx context.Context, db datastore.Handler, cache datastore
 		return fmt.Errorf("failed to commit database transaction: %w", err)
 	}
 
+	// Only invalidate the repository size in the cache outside of the transaction.
+	if cache != nil {
+		cache.InvalidateSize(ctx, r)
+	}
+
 	return nil
 }
 
@@ -1828,6 +1838,10 @@ func dbDeleteTag(ctx context.Context, db datastore.Handler, cache datastore.Repo
 
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit database transaction: %w", err)
+	}
+	// Only invalidate the repository size in the cache outside of the transaction.
+	if cache != nil {
+		cache.InvalidateSize(ctx, r)
 	}
 
 	return nil

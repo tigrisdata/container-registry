@@ -134,8 +134,9 @@ type RepositoryStore interface {
 // repositoryStore is the concrete implementation of a RepositoryStore.
 type repositoryStore struct {
 	// db can be either a *sql.DB or *sql.Tx
-	db    Queryer
-	cache RepositoryCache
+	db                  Queryer
+	cache               RepositoryCache
+	disableTxCacheWrite bool
 }
 
 // NewRepositoryStore builds a new repositoryStore.
@@ -145,8 +146,41 @@ func NewRepositoryStore(db Queryer, opts ...RepositoryStoreOption) RepositorySto
 	for _, o := range opts {
 		o(rStore)
 	}
+	// If the database is a transaction, disable cache writes through the repositoryStore.
+	// This is to avoid data inconsistencies and race conditions when other
+	// concurrent queries or requests retrieve cached objects/rows before the
+	// creating transaction commits to the database which should be the single source of truth.
+	if _, isTransaction := db.(*Tx); isTransaction {
+		rStore.disableTxCacheWrite = true
+	}
 
 	return rStore
+}
+
+// cacheSet sets the repository in the cache if cache writes are not disabled.
+func (s *repositoryStore) cacheSet(ctx context.Context, r *models.Repository) {
+	switch {
+	case s.disableTxCacheWrite:
+		log.GetLogger(log.WithContext(ctx)).Debug("cacheSet: cache writes are not allowed in a database transaction")
+		return
+	case s.cache == nil:
+		return
+	default:
+		s.cache.Set(ctx, r)
+	}
+}
+
+// cacheInvalidateSize invalidates the repository size in the cache if cache writes are not disabled.
+func (s *repositoryStore) cacheInvalidateSize(ctx context.Context, r *models.Repository) {
+	switch {
+	case s.disableTxCacheWrite:
+		log.GetLogger(log.WithContext(ctx)).Debug("cacheInvalidateSize: cache writes are not allowed in a database transaction")
+		return
+	case s.cache == nil:
+		return
+	default:
+		s.cache.InvalidateSize(ctx, r)
+	}
 }
 
 // RepositoryManifestService implements the validation.ManifestExister
@@ -616,7 +650,7 @@ func (s *repositoryStore) FindByPath(ctx context.Context, path string) (*models.
 		return r, err
 	}
 
-	s.cache.Set(ctx, r)
+	s.cacheSet(ctx, r)
 
 	return r, nil
 }
@@ -1721,7 +1755,7 @@ func (s *repositoryStore) Create(ctx context.Context, r *models.Repository) erro
 		return fmt.Errorf("creating repository: %w", err)
 	}
 
-	s.cache.Set(ctx, r)
+	s.cacheSet(ctx, r)
 
 	return nil
 }
@@ -1800,7 +1834,7 @@ func (s *repositoryStore) Size(ctx context.Context, r *models.Repository) (Repos
 
 	// Update the size attribute for the cached repository object
 	r.Size = &b
-	s.cache.Set(ctx, r)
+	s.cacheSet(ctx, r)
 
 	return RepositorySize{bytes: b}, nil
 }
@@ -2083,7 +2117,7 @@ func (s *repositoryStore) CreateOrFind(ctx context.Context, r *models.Repository
 			return err
 		}
 		*r = *tmp
-		s.cache.Set(ctx, r)
+		s.cacheSet(ctx, r)
 	}
 
 	return nil
@@ -2122,7 +2156,7 @@ func (s *repositoryStore) CreateByPath(ctx context.Context, path string, opts ..
 		return nil, err
 	}
 
-	s.cache.Set(ctx, r)
+	s.cacheSet(ctx, r)
 
 	return r, nil
 }
@@ -2151,7 +2185,7 @@ func (s *repositoryStore) CreateOrFindByPath(ctx context.Context, path string, o
 		return nil, err
 	}
 
-	s.cache.Set(ctx, r)
+	s.cacheSet(ctx, r)
 
 	return r, nil
 }
@@ -2177,7 +2211,7 @@ func (s *repositoryStore) Update(ctx context.Context, r *models.Repository) erro
 		return fmt.Errorf("updating repository: %w", err)
 	}
 
-	s.cache.Set(ctx, r)
+	s.cacheSet(ctx, r)
 
 	return nil
 }
@@ -2240,7 +2274,7 @@ func (s *repositoryStore) DeleteTagByName(ctx context.Context, r *models.Reposit
 		return false, fmt.Errorf("deleting tag: %w", err)
 	}
 
-	s.cache.InvalidateSize(ctx, r)
+	s.cacheInvalidateSize(ctx, r)
 
 	return count == 1, nil
 }
@@ -2271,7 +2305,7 @@ func (s *repositoryStore) DeleteManifest(ctx context.Context, r *models.Reposito
 		return false, fmt.Errorf("deleting manifest: %w", err)
 	}
 
-	s.cache.InvalidateSize(ctx, r)
+	s.cacheInvalidateSize(ctx, r)
 
 	return count == 1, nil
 }
@@ -2345,7 +2379,7 @@ func (s *repositoryStore) Rename(ctx context.Context, r *models.Repository, newP
 		return fmt.Errorf("renaming repository: %w", err)
 	}
 
-	s.cache.Set(ctx, r)
+	s.cacheSet(ctx, r)
 
 	return nil
 }
@@ -2377,7 +2411,7 @@ func (s *repositoryStore) UpdateLastPublishedAt(ctx context.Context, r *models.R
 		return fmt.Errorf("updating repository last published at: %w", err)
 	}
 
-	s.cache.Set(ctx, r)
+	s.cacheSet(ctx, r)
 
 	return nil
 }

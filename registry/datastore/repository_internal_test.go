@@ -1,11 +1,19 @@
 package datastore
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/docker/distribution/registry/datastore/models"
+	itestutil "github.com/docker/distribution/registry/internal/testutil"
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/opencontainers/go-digest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -241,4 +249,67 @@ func Test_tagsDetailPaginatedQuery(t *testing.T) {
 			require.ElementsMatch(tt, tc.expectedArgs, args)
 		})
 	}
+}
+
+type dbMock struct {
+	db *sql.DB
+}
+
+func (m *dbMock) QueryRowContext(ctx context.Context, query string, args ...any) *Row {
+	sqlRow := m.db.QueryRowContext(ctx, query, args...)
+	return &Row{
+		Row: sqlRow,
+	}
+}
+
+func (m *dbMock) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	return m.db.ExecContext(ctx, query, args...)
+}
+
+func (m *dbMock) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
+	return m.db.QueryContext(ctx, query, args...)
+}
+
+func TestRepositoryStore_SizeWithDescendants_TopLevel_SetsCacheOnTimeout(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	redisCache, redisMock := itestutil.RedisCacheMock(t, 0)
+	cache := NewCentralRepositoryCache(redisCache)
+
+	// The error we want Postgres to return is a statement timeout cancellation error
+	pgTimeout := &pgconn.PgError{
+		Code:    pgerrcode.QueryCanceled,
+		Message: "canceling statement due to statement timeout",
+	}
+
+	// Set up redis expectations
+	repo := &models.Repository{NamespaceID: 3, ID: 8, Path: "usage-group"}
+
+	// Mock the SQL query SizeWithDescendants()
+	mock.ExpectQuery(`(?s)SELECT\s+coalesce\(sum\(q\.size\), 0\).*WITH RECURSIVE cte`).
+		WithArgs(repo.NamespaceID).
+		WillReturnError(pgTimeout)
+
+	redisKey := fmt.Sprintf(
+		"registry:db:{repository:%s:%s}:swd-timeout",
+		repo.Path,
+		digest.FromString(repo.Path).Hex(),
+	)
+
+	redisMock.ExpectGet(redisKey).RedisNil()
+	redisMock.ExpectSet(redisKey, "true", 24*time.Hour).SetVal("true")
+
+	s := NewRepositoryStore(&dbMock{db: db}, WithRepositoryCache(cache))
+	size, err := s.SizeWithDescendants(context.Background(), repo)
+	require.Error(t, err)
+
+	var pgErr *pgconn.PgError
+	require.ErrorAs(t, err, &pgErr)
+	require.Equal(t, pgerrcode.QueryCanceled, pgErr.Code)
+	require.Zero(t, size)
+
+	// Ensure all db expectations ran
+	require.NoError(t, mock.ExpectationsWereMet())
 }
