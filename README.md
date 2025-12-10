@@ -25,7 +25,7 @@ database and the original goal, enabling
 
 ## Benchmarking
 
-A benchmark tool is available to measure push/pull performance:
+A benchmark tool is available to measure push/pull performance with realistic Docker-like operations.
 
 ### Build
 
@@ -33,28 +33,55 @@ A benchmark tool is available to measure push/pull performance:
 go build -o bin/benchmark ./cmd/benchmark
 ```
 
-### Run (defaults: 1GB,2GB sizes, 3 iterations, localhost:5000)
+### Usage
 
 ```bash
 ./bin/benchmark --help
 
 Usage of ./bin/benchmark:
--iterations int
-Number of iterations per size (default 3)
--output string
-Output format: text or json (default "text")
--registry string
-Target registry URL (default "http://localhost:5000")
--repository string
-Repository path for test images (default "benchmark/test")
--sizes string
-Comma-separated blob sizes to test (e.g., 1GB,2GB) (default "1GB,2GB")
+  -chunk-size int
+        Chunk size in bytes for chunked uploads (default 5242880 = 5MB)
+  -iterations int
+        Number of iterations per size (default 3)
+  -layers int
+        Number of layers per image (default 1)
+  -monolithic
+        Use monolithic uploads instead of chunked (default: chunked)
+  -output string
+        Output format: text or json (default "text")
+  -registry string
+        Target registry URL (default "http://localhost:5000")
+  -repository string
+        Repository path for test images (default "benchmark/test")
+  -sizes string
+        Comma-separated layer sizes to test (default "1GB,2GB")
+  -tag string
+        Tag for manifest (default "benchmark")
 ```
 
-### Custom settings
+### How It Works
+
+The benchmark simulates realistic Docker push/pull operations:
+
+- Pushes config blob + layer blobs + manifest
+- Pulls manifest + config blob + layer blobs
+- Layers are pushed/pulled concurrently (like Docker client)
+- Supports chunked (PATCH) or monolithic (PUT) uploads
+
+### Examples
 
 ```bash
-./bin/benchmark --registry http://localhost:5555 --sizes 1GB,2GB --iterations 5
+# Default: 1GB layer, chunked uploads (5MB chunks)
+./bin/benchmark -registry http://localhost:5555 -sizes 1GB
+
+# Multi-layer image (3 x 1GB layers = 3GB total)
+./bin/benchmark -registry http://localhost:5555 -sizes 1GB -layers 3
+
+# Larger chunks for better throughput
+./bin/benchmark -registry http://localhost:5555 -sizes 1GB -chunk-size 52428800
+
+# Monolithic uploads (single PUT per layer)
+./bin/benchmark -registry http://localhost:5555 -sizes 1GB -layers 3 -monolithic
 ```
 
 ## Contributing
