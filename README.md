@@ -23,6 +23,40 @@ These changes culminated on a new architecture based on a relational metadata
 database and the original goal, enabling
 [online garbage collection](docs/spec/gitlab/online-garbage-collection.md).
 
+## Benchmarking
+
+A benchmark tool is available to measure push/pull performance:
+
+### Build
+
+```bash
+go build -o bin/benchmark ./cmd/benchmark
+```
+
+### Run (defaults: 1GB,2GB sizes, 3 iterations, localhost:5000)
+
+```bash
+./bin/benchmark --help
+
+Usage of ./bin/benchmark:
+-iterations int
+Number of iterations per size (default 3)
+-output string
+Output format: text or json (default "text")
+-registry string
+Target registry URL (default "http://localhost:5000")
+-repository string
+Repository path for test images (default "benchmark/test")
+-sizes string
+Comma-separated blob sizes to test (e.g., 1GB,2GB) (default "1GB,2GB")
+```
+
+### Custom settings
+
+```bash
+./bin/benchmark --registry http://localhost:5555 --sizes 1GB,2GB --iterations 5
+```
+
 ## Contributing
 
 Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to contribute.
