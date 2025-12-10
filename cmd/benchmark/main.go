@@ -60,7 +60,6 @@ type BenchmarkOutput struct {
 	Registry    string        `json:"registry"`
 	Repository  string        `json:"repository"`
 	Timestamp   string        `json:"timestamp"`
-	Mode        string        `json:"mode"` // "blob-only" or "full-image"
 	PushResults []SizeResults `json:"push_results"`
 	PullResults []SizeResults `json:"pull_results"`
 }
@@ -107,16 +106,15 @@ func main() {
 	// Parse command line flags
 	registry := flag.String("registry", defaultRegistry, "Target registry URL")
 	repository := flag.String("repository", defaultRepository, "Repository path for test images")
-	sizes := flag.String("sizes", defaultSizes, "Comma-separated blob sizes to test (e.g., 1GB,2GB)")
+	sizes := flag.String("sizes", defaultSizes, "Comma-separated layer sizes to test (e.g., 1GB,2GB)")
 	iterations := flag.Int("iterations", defaultIterations, "Number of iterations per size")
 	output := flag.String("output", defaultOutput, "Output format: text or json")
 
-	// New flags for enhanced benchmark modes
-	blobOnly := flag.Bool("blob-only", false, "Legacy mode: blob-only benchmarks without manifest operations")
+	// Benchmark mode flags
 	monolithic := flag.Bool("monolithic", false, "Use monolithic uploads instead of chunked (default: chunked)")
 	chunkSize := flag.Int("chunk-size", defaultChunkSize, "Chunk size in bytes for chunked uploads (default: 5MB)")
-	layers := flag.Int("layers", defaultLayers, "Number of layers per image in full-image mode")
-	tag := flag.String("tag", defaultTag, "Tag for manifest in full-image mode")
+	layers := flag.Int("layers", defaultLayers, "Number of layers per image")
+	tag := flag.String("tag", defaultTag, "Tag for manifest")
 
 	flag.Parse()
 
@@ -133,12 +131,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Determine mode
 	useChunked := !*monolithic
-	mode := "full-image"
-	if *blobOnly {
-		mode = "blob-only"
-	}
 
 	// Run benchmarks
 	ctx := context.Background()
@@ -146,107 +139,29 @@ func main() {
 		Registry:   *registry,
 		Repository: *repository,
 		Timestamp:  time.Now().UTC().Format(time.RFC3339),
-		Mode:       mode,
 	}
 
 	fmt.Fprintf(os.Stderr, "Container Registry Benchmark\n")
 	fmt.Fprintf(os.Stderr, "============================\n")
 	fmt.Fprintf(os.Stderr, "Registry: %s\n", *registry)
 	fmt.Fprintf(os.Stderr, "Repository: %s\n", *repository)
-	fmt.Fprintf(os.Stderr, "Mode: %s\n", mode)
-	if !*blobOnly {
-		fmt.Fprintf(os.Stderr, "Layers: %d\n", *layers)
-		fmt.Fprintf(os.Stderr, "Tag: %s\n", *tag)
-		if useChunked {
-			fmt.Fprintf(os.Stderr, "Upload: chunked (%s chunks)\n", humanizeBytes(int64(*chunkSize)))
-		} else {
-			fmt.Fprintf(os.Stderr, "Upload: monolithic\n")
-		}
+	fmt.Fprintf(os.Stderr, "Layers: %d\n", *layers)
+	fmt.Fprintf(os.Stderr, "Tag: %s\n", *tag)
+	if useChunked {
+		fmt.Fprintf(os.Stderr, "Upload: chunked (%s chunks)\n", humanizeBytes(int64(*chunkSize)))
+	} else {
+		fmt.Fprintf(os.Stderr, "Upload: monolithic\n")
 	}
 	fmt.Fprintf(os.Stderr, "Sizes: %v\n", sizeList)
 	fmt.Fprintf(os.Stderr, "Iterations: %d\n\n", *iterations)
 
-	if *blobOnly {
-		// Legacy blob-only mode
-		runBlobOnlyBenchmarks(ctx, *registry, *repository, sizeList, *iterations, useChunked, *chunkSize, &benchmarkOutput)
-	} else {
-		// Full-image mode (default)
-		runFullImageBenchmarks(ctx, *registry, *repository, *tag, sizeList, *layers, *iterations, useChunked, *chunkSize, &benchmarkOutput)
-	}
+	runFullImageBenchmarks(ctx, *registry, *repository, *tag, sizeList, *layers, *iterations, useChunked, *chunkSize, &benchmarkOutput)
 
 	// Output results
 	if *output == "json" {
 		outputJSON(benchmarkOutput)
 	} else {
 		outputText(benchmarkOutput)
-	}
-}
-
-// runBlobOnlyBenchmarks runs legacy blob-only benchmarks
-func runBlobOnlyBenchmarks(ctx context.Context, registry, repository string, sizeList []int64, iterations int, useChunked bool, chunkSize int, benchmarkOutput *BenchmarkOutput) {
-	for _, size := range sizeList {
-		sizeHuman := humanizeBytes(size)
-		fmt.Fprintf(os.Stderr, "Testing %s blobs...\n", sizeHuman)
-
-		// Generate blob once per size
-		fmt.Fprintf(os.Stderr, "  Generating %s random blob...\n", sizeHuman)
-		data, dgst := generateBlob(size)
-		fmt.Fprintf(os.Stderr, "  Blob digest: %s\n", dgst)
-
-		// Push benchmarks
-		fmt.Fprintf(os.Stderr, "  Running push benchmarks...\n")
-		pushResults := make([]BenchmarkResult, 0, iterations)
-		for i := 0; i < iterations; i++ {
-			var result BenchmarkResult
-			var err error
-			if useChunked {
-				result, err = pushBlobChunked(ctx, registry, repository, data, dgst, chunkSize)
-			} else {
-				result, err = benchmarkPush(ctx, registry, repository, data, dgst, i)
-			}
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "    Push iteration %d failed: %v\n", i+1, err)
-				continue
-			}
-			pushResults = append(pushResults, result)
-			fmt.Fprintf(os.Stderr, "    Push %d: %.2f MB/s (%.2fs)\n", i+1, result.Throughput, result.Duration.Seconds())
-
-			// Delete after each push except the last one (reuse for pull benchmarks)
-			if i < iterations-1 {
-				if err := deleteBlob(ctx, registry, repository, dgst); err != nil {
-					fmt.Fprintf(os.Stderr, "    Warning: cleanup failed: %v\n", err)
-				}
-			}
-		}
-
-		// Pull benchmarks
-		fmt.Fprintf(os.Stderr, "  Running pull benchmarks...\n")
-		pullResults := make([]BenchmarkResult, 0, iterations)
-		for i := 0; i < iterations; i++ {
-			result, err := benchmarkPull(ctx, registry, repository, dgst, size)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "    Pull iteration %d failed: %v\n", i+1, err)
-				continue
-			}
-			pullResults = append(pullResults, result)
-			fmt.Fprintf(os.Stderr, "    Pull %d: %.2f MB/s (%.2fs)\n", i+1, result.Throughput, result.Duration.Seconds())
-		}
-
-		// Cleanup
-		fmt.Fprintf(os.Stderr, "  Cleaning up...\n")
-		if err := deleteBlob(ctx, registry, repository, dgst); err != nil {
-			fmt.Fprintf(os.Stderr, "    Warning: cleanup failed: %v\n", err)
-		}
-
-		// Aggregate results
-		if len(pushResults) > 0 {
-			benchmarkOutput.PushResults = append(benchmarkOutput.PushResults, aggregateResults(size, pushResults))
-		}
-		if len(pullResults) > 0 {
-			benchmarkOutput.PullResults = append(benchmarkOutput.PullResults, aggregateResults(size, pullResults))
-		}
-
-		fmt.Fprintf(os.Stderr, "\n")
 	}
 }
 
@@ -1016,7 +931,6 @@ func outputText(output BenchmarkOutput) {
 	fmt.Println("=====================================")
 	fmt.Printf("Registry: %s\n", output.Registry)
 	fmt.Printf("Repository: %s\n", output.Repository)
-	fmt.Printf("Mode: %s\n", output.Mode)
 	fmt.Printf("Timestamp: %s\n", output.Timestamp)
 	fmt.Println()
 

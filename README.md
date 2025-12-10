@@ -39,14 +39,12 @@ go build -o bin/benchmark ./cmd/benchmark
 ./bin/benchmark --help
 
 Usage of ./bin/benchmark:
-  -blob-only
-        Legacy mode: blob-only benchmarks without manifest operations
   -chunk-size int
         Chunk size in bytes for chunked uploads (default 5242880 = 5MB)
   -iterations int
         Number of iterations per size (default 3)
   -layers int
-        Number of layers per image in full-image mode (default 1)
+        Number of layers per image (default 1)
   -monolithic
         Use monolithic uploads instead of chunked (default: chunked)
   -output string
@@ -58,23 +56,22 @@ Usage of ./bin/benchmark:
   -sizes string
         Comma-separated layer sizes to test (default "1GB,2GB")
   -tag string
-        Tag for manifest in full-image mode (default "benchmark")
+        Tag for manifest (default "benchmark")
 ```
 
-### Benchmark Modes
+### How It Works
 
-**Full-image mode** (default): Simulates realistic Docker push/pull operations:
+The benchmark simulates realistic Docker push/pull operations:
+
 - Pushes config blob + layer blobs + manifest
 - Pulls manifest + config blob + layer blobs
 - Layers are pushed/pulled concurrently (like Docker client)
 - Supports chunked (PATCH) or monolithic (PUT) uploads
 
-**Blob-only mode** (`-blob-only`): Legacy mode for raw blob throughput testing without manifest operations.
-
 ### Examples
 
 ```bash
-# Default: Full image with 1GB layers, chunked uploads (5MB chunks)
+# Default: 1GB layer, chunked uploads (5MB chunks)
 ./bin/benchmark -registry http://localhost:5555 -sizes 1GB
 
 # Multi-layer image (3 x 1GB layers = 3GB total)
@@ -84,21 +81,8 @@ Usage of ./bin/benchmark:
 ./bin/benchmark -registry http://localhost:5555 -sizes 1GB -chunk-size 52428800
 
 # Monolithic uploads (single PUT per layer)
-./bin/benchmark -registry http://localhost:5555 -sizes 1GB -monolithic
-
-# Legacy blob-only mode
-./bin/benchmark -registry http://localhost:5555 -sizes 1GB -blob-only
+./bin/benchmark -registry http://localhost:5555 -sizes 1GB -layers 3 -monolithic
 ```
-
-### Performance Notes
-
-| Upload Mode | Throughput | Best For |
-|-------------|------------|----------|
-| Monolithic | ~60 MB/s | Maximum throughput |
-| Chunked (50MB) | ~50 MB/s | Resumable uploads |
-| Chunked (5MB) | ~18 MB/s | Docker client simulation |
-
-Layers are pushed/pulled concurrently, so multi-layer images benefit from parallelism.
 
 ## Contributing
 
