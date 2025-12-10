@@ -24,6 +24,15 @@ const (
 	defaultSizes      = "1GB,2GB"
 	defaultIterations = 3
 	defaultOutput     = "text"
+	defaultChunkSize  = 5 * 1024 * 1024 // 5MB default chunk size (matches Docker client)
+	defaultLayers     = 1
+	defaultTag        = "benchmark"
+	defaultConfigSize = 1024 // 1KB config blob
+
+	// Docker Schema v2 media types
+	mediaTypeManifest    = "application/vnd.docker.distribution.manifest.v2+json"
+	mediaTypeImageConfig = "application/vnd.docker.container.image.v1+json"
+	mediaTypeLayer       = "application/vnd.docker.image.rootfs.diff.tar.gzip"
 )
 
 // BenchmarkResult holds the results of a single benchmark run
@@ -35,14 +44,14 @@ type BenchmarkResult struct {
 
 // SizeResults holds aggregated results for a specific size
 type SizeResults struct {
-	SizeBytes       int64     `json:"size_bytes"`
-	SizeHuman       string    `json:"size_human"`
-	Iterations      int       `json:"iterations"`
-	MeanThroughput  float64   `json:"mean_throughput_mbps"`
-	StdDevThroughput float64  `json:"std_dev_mbps"`
-	MinThroughput   float64   `json:"min_throughput_mbps"`
-	MaxThroughput   float64   `json:"max_throughput_mbps"`
-	Durations       []int64   `json:"durations_ms"`
+	SizeBytes        int64   `json:"size_bytes"`
+	SizeHuman        string  `json:"size_human"`
+	Iterations       int     `json:"iterations"`
+	MeanThroughput   float64 `json:"mean_throughput_mbps"`
+	StdDevThroughput float64 `json:"std_dev_mbps"`
+	MinThroughput    float64 `json:"min_throughput_mbps"`
+	MaxThroughput    float64 `json:"max_throughput_mbps"`
+	Durations        []int64 `json:"durations_ms"`
 }
 
 // BenchmarkOutput is the full output structure for JSON
@@ -50,8 +59,47 @@ type BenchmarkOutput struct {
 	Registry    string        `json:"registry"`
 	Repository  string        `json:"repository"`
 	Timestamp   string        `json:"timestamp"`
+	Mode        string        `json:"mode"` // "blob-only" or "full-image"
 	PushResults []SizeResults `json:"push_results"`
 	PullResults []SizeResults `json:"pull_results"`
+}
+
+// FullImageResult holds detailed results for full-image benchmarks
+type FullImageResult struct {
+	// Push metrics
+	ConfigPushDuration   time.Duration `json:"config_push_duration_ns"`
+	LayerPushDurations   []int64       `json:"layer_push_durations_ms"`
+	ManifestPushDuration time.Duration `json:"manifest_push_duration_ns"`
+	TotalPushDuration    time.Duration `json:"total_push_duration_ns"`
+	PushThroughputMBps   float64       `json:"push_throughput_mbps"`
+
+	// Pull metrics
+	ManifestPullDuration time.Duration `json:"manifest_pull_duration_ns"`
+	ConfigPullDuration   time.Duration `json:"config_pull_duration_ns"`
+	LayerPullDurations   []int64       `json:"layer_pull_durations_ms"`
+	TotalPullDuration    time.Duration `json:"total_pull_duration_ns"`
+	PullThroughputMBps   float64       `json:"pull_throughput_mbps"`
+
+	// Metadata
+	TotalBytes    int64 `json:"total_bytes"`
+	NumLayers     int   `json:"num_layers"`
+	ChunkedUpload bool  `json:"chunked_upload"`
+	ChunkSize     int   `json:"chunk_size"`
+}
+
+// Manifest represents a Docker Schema v2 manifest for benchmarking
+type benchmarkManifest struct {
+	SchemaVersion int                   `json:"schemaVersion"`
+	MediaType     string                `json:"mediaType"`
+	Config        descriptorBenchmark   `json:"config"`
+	Layers        []descriptorBenchmark `json:"layers"`
+}
+
+// descriptorBenchmark represents a content descriptor
+type descriptorBenchmark struct {
+	MediaType string `json:"mediaType"`
+	Size      int64  `json:"size"`
+	Digest    string `json:"digest"`
 }
 
 func main() {
@@ -61,6 +109,14 @@ func main() {
 	sizes := flag.String("sizes", defaultSizes, "Comma-separated blob sizes to test (e.g., 1GB,2GB)")
 	iterations := flag.Int("iterations", defaultIterations, "Number of iterations per size")
 	output := flag.String("output", defaultOutput, "Output format: text or json")
+
+	// New flags for enhanced benchmark modes
+	blobOnly := flag.Bool("blob-only", false, "Legacy mode: blob-only benchmarks without manifest operations")
+	monolithic := flag.Bool("monolithic", false, "Use monolithic uploads instead of chunked (default: chunked)")
+	chunkSize := flag.Int("chunk-size", defaultChunkSize, "Chunk size in bytes for chunked uploads (default: 5MB)")
+	layers := flag.Int("layers", defaultLayers, "Number of layers per image in full-image mode")
+	tag := flag.String("tag", defaultTag, "Tag for manifest in full-image mode")
+
 	flag.Parse()
 
 	// Parse sizes
@@ -76,21 +132,57 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Determine mode
+	useChunked := !*monolithic
+	mode := "full-image"
+	if *blobOnly {
+		mode = "blob-only"
+	}
+
 	// Run benchmarks
 	ctx := context.Background()
 	benchmarkOutput := BenchmarkOutput{
 		Registry:   *registry,
 		Repository: *repository,
 		Timestamp:  time.Now().UTC().Format(time.RFC3339),
+		Mode:       mode,
 	}
 
 	fmt.Fprintf(os.Stderr, "Container Registry Benchmark\n")
 	fmt.Fprintf(os.Stderr, "============================\n")
 	fmt.Fprintf(os.Stderr, "Registry: %s\n", *registry)
 	fmt.Fprintf(os.Stderr, "Repository: %s\n", *repository)
+	fmt.Fprintf(os.Stderr, "Mode: %s\n", mode)
+	if !*blobOnly {
+		fmt.Fprintf(os.Stderr, "Layers: %d\n", *layers)
+		fmt.Fprintf(os.Stderr, "Tag: %s\n", *tag)
+		if useChunked {
+			fmt.Fprintf(os.Stderr, "Upload: chunked (%s chunks)\n", humanizeBytes(int64(*chunkSize)))
+		} else {
+			fmt.Fprintf(os.Stderr, "Upload: monolithic\n")
+		}
+	}
 	fmt.Fprintf(os.Stderr, "Sizes: %v\n", sizeList)
 	fmt.Fprintf(os.Stderr, "Iterations: %d\n\n", *iterations)
 
+	if *blobOnly {
+		// Legacy blob-only mode
+		runBlobOnlyBenchmarks(ctx, *registry, *repository, sizeList, *iterations, useChunked, *chunkSize, &benchmarkOutput)
+	} else {
+		// Full-image mode (default)
+		runFullImageBenchmarks(ctx, *registry, *repository, *tag, sizeList, *layers, *iterations, useChunked, *chunkSize, &benchmarkOutput)
+	}
+
+	// Output results
+	if *output == "json" {
+		outputJSON(benchmarkOutput)
+	} else {
+		outputText(benchmarkOutput)
+	}
+}
+
+// runBlobOnlyBenchmarks runs legacy blob-only benchmarks
+func runBlobOnlyBenchmarks(ctx context.Context, registry, repository string, sizeList []int64, iterations int, useChunked bool, chunkSize int, benchmarkOutput *BenchmarkOutput) {
 	for _, size := range sizeList {
 		sizeHuman := humanizeBytes(size)
 		fmt.Fprintf(os.Stderr, "Testing %s blobs...\n", sizeHuman)
@@ -101,12 +193,16 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  Blob digest: %s\n", dgst)
 
 		// Push benchmarks
-		// We run all push iterations, deleting between each except the last one
-		// The last pushed blob is reused for pull benchmarks
 		fmt.Fprintf(os.Stderr, "  Running push benchmarks...\n")
-		pushResults := make([]BenchmarkResult, 0, *iterations)
-		for i := 0; i < *iterations; i++ {
-			result, err := benchmarkPush(ctx, *registry, *repository, data, dgst, i)
+		pushResults := make([]BenchmarkResult, 0, iterations)
+		for i := 0; i < iterations; i++ {
+			var result BenchmarkResult
+			var err error
+			if useChunked {
+				result, err = pushBlobChunked(ctx, registry, repository, data, dgst, chunkSize)
+			} else {
+				result, err = benchmarkPush(ctx, registry, repository, data, dgst, i)
+			}
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "    Push iteration %d failed: %v\n", i+1, err)
 				continue
@@ -115,21 +211,18 @@ func main() {
 			fmt.Fprintf(os.Stderr, "    Push %d: %.2f MB/s (%.2fs)\n", i+1, result.Throughput, result.Duration.Seconds())
 
 			// Delete after each push except the last one (reuse for pull benchmarks)
-			if i < *iterations-1 {
-				if err := deleteBlob(ctx, *registry, *repository, dgst); err != nil {
+			if i < iterations-1 {
+				if err := deleteBlob(ctx, registry, repository, dgst); err != nil {
 					fmt.Fprintf(os.Stderr, "    Warning: cleanup failed: %v\n", err)
 				}
 			}
 		}
 
-		// The last pushed blob is already in the registry for pull benchmarks
-		fmt.Fprintf(os.Stderr, "  Reusing last pushed blob for pull benchmarks...\n")
-
 		// Pull benchmarks
 		fmt.Fprintf(os.Stderr, "  Running pull benchmarks...\n")
-		pullResults := make([]BenchmarkResult, 0, *iterations)
-		for i := 0; i < *iterations; i++ {
-			result, err := benchmarkPull(ctx, *registry, *repository, dgst, size)
+		pullResults := make([]BenchmarkResult, 0, iterations)
+		for i := 0; i < iterations; i++ {
+			result, err := benchmarkPull(ctx, registry, repository, dgst, size)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "    Pull iteration %d failed: %v\n", i+1, err)
 				continue
@@ -140,7 +233,7 @@ func main() {
 
 		// Cleanup
 		fmt.Fprintf(os.Stderr, "  Cleaning up...\n")
-		if err := deleteBlob(ctx, *registry, *repository, dgst); err != nil {
+		if err := deleteBlob(ctx, registry, repository, dgst); err != nil {
 			fmt.Fprintf(os.Stderr, "    Warning: cleanup failed: %v\n", err)
 		}
 
@@ -154,12 +247,113 @@ func main() {
 
 		fmt.Fprintf(os.Stderr, "\n")
 	}
+}
 
-	// Output results
-	if *output == "json" {
-		outputJSON(benchmarkOutput)
-	} else {
-		outputText(benchmarkOutput)
+// runFullImageBenchmarks runs full-image benchmarks (config + layers + manifest)
+func runFullImageBenchmarks(ctx context.Context, registry, repository, tag string, sizeList []int64, numLayers, iterations int, useChunked bool, chunkSize int, benchmarkOutput *BenchmarkOutput) {
+	for _, layerSize := range sizeList {
+		sizeHuman := humanizeBytes(layerSize)
+		totalSize := int64(defaultConfigSize) + layerSize*int64(numLayers)
+		totalHuman := humanizeBytes(totalSize)
+
+		fmt.Fprintf(os.Stderr, "Testing full image with %d x %s layers (total: %s)...\n", numLayers, sizeHuman, totalHuman)
+
+		// Generate config blob
+		fmt.Fprintf(os.Stderr, "  Generating config blob (%s)...\n", humanizeBytes(defaultConfigSize))
+		configData, configDigest := generateBlob(defaultConfigSize)
+
+		// Generate layer blobs
+		layerData := make([][]byte, numLayers)
+		layerDigests := make([]digest.Digest, numLayers)
+		for i := 0; i < numLayers; i++ {
+			fmt.Fprintf(os.Stderr, "  Generating layer %d (%s)...\n", i+1, sizeHuman)
+			layerData[i], layerDigests[i] = generateBlob(layerSize)
+		}
+
+		// Push benchmarks
+		fmt.Fprintf(os.Stderr, "  Running push benchmarks...\n")
+		pushResults := make([]BenchmarkResult, 0, iterations)
+		for i := 0; i < iterations; i++ {
+			// Use unique tag per iteration to avoid conflicts
+			iterTag := fmt.Sprintf("%s-%d", tag, i)
+
+			result, err := benchmarkFullImagePush(ctx, registry, repository, iterTag, configData, configDigest, layerData, layerDigests, useChunked, chunkSize)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "    Push iteration %d failed: %v\n", i+1, err)
+				continue
+			}
+
+			// Convert to BenchmarkResult for aggregation
+			pushResults = append(pushResults, BenchmarkResult{
+				Size:       result.TotalBytes,
+				Duration:   result.TotalPushDuration,
+				Throughput: result.PushThroughputMBps,
+			})
+			fmt.Fprintf(os.Stderr, "    Push %d: %.2f MB/s (%.2fs) [manifest: %dms]\n",
+				i+1, result.PushThroughputMBps, result.TotalPushDuration.Seconds(),
+				result.ManifestPushDuration.Milliseconds())
+
+			// Delete manifest and blobs after each push except the last one
+			if i < iterations-1 {
+				if err := deleteManifest(ctx, registry, repository, iterTag); err != nil {
+					fmt.Fprintf(os.Stderr, "    Warning: manifest cleanup failed: %v\n", err)
+				}
+				if err := deleteBlob(ctx, registry, repository, configDigest); err != nil {
+					fmt.Fprintf(os.Stderr, "    Warning: config cleanup failed: %v\n", err)
+				}
+				for j, dgst := range layerDigests {
+					if err := deleteBlob(ctx, registry, repository, dgst); err != nil {
+						fmt.Fprintf(os.Stderr, "    Warning: layer %d cleanup failed: %v\n", j, err)
+					}
+				}
+			}
+		}
+
+		// Pull benchmarks - use the last pushed image
+		lastTag := fmt.Sprintf("%s-%d", tag, iterations-1)
+		fmt.Fprintf(os.Stderr, "  Running pull benchmarks...\n")
+		pullResults := make([]BenchmarkResult, 0, iterations)
+		for i := 0; i < iterations; i++ {
+			result, err := benchmarkFullImagePull(ctx, registry, repository, lastTag, totalSize)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "    Pull iteration %d failed: %v\n", i+1, err)
+				continue
+			}
+
+			// Convert to BenchmarkResult for aggregation
+			pullResults = append(pullResults, BenchmarkResult{
+				Size:       result.TotalBytes,
+				Duration:   result.TotalPullDuration,
+				Throughput: result.PullThroughputMBps,
+			})
+			fmt.Fprintf(os.Stderr, "    Pull %d: %.2f MB/s (%.2fs) [manifest: %dms]\n",
+				i+1, result.PullThroughputMBps, result.TotalPullDuration.Seconds(),
+				result.ManifestPullDuration.Milliseconds())
+		}
+
+		// Cleanup
+		fmt.Fprintf(os.Stderr, "  Cleaning up...\n")
+		if err := deleteManifest(ctx, registry, repository, lastTag); err != nil {
+			fmt.Fprintf(os.Stderr, "    Warning: manifest cleanup failed: %v\n", err)
+		}
+		if err := deleteBlob(ctx, registry, repository, configDigest); err != nil {
+			fmt.Fprintf(os.Stderr, "    Warning: config cleanup failed: %v\n", err)
+		}
+		for j, dgst := range layerDigests {
+			if err := deleteBlob(ctx, registry, repository, dgst); err != nil {
+				fmt.Fprintf(os.Stderr, "    Warning: layer %d cleanup failed: %v\n", j, err)
+			}
+		}
+
+		// Aggregate results
+		if len(pushResults) > 0 {
+			benchmarkOutput.PushResults = append(benchmarkOutput.PushResults, aggregateResults(totalSize, pushResults))
+		}
+		if len(pullResults) > 0 {
+			benchmarkOutput.PullResults = append(benchmarkOutput.PullResults, aggregateResults(totalSize, pullResults))
+		}
+
+		fmt.Fprintf(os.Stderr, "\n")
 	}
 }
 
@@ -306,6 +500,120 @@ func benchmarkPush(ctx context.Context, registry, repository string, data []byte
 	}, nil
 }
 
+// pushBlobChunked pushes a blob using chunked uploads (PATCH requests)
+func pushBlobChunked(ctx context.Context, registry, repository string, data []byte, dgst digest.Digest, chunkSize int) (BenchmarkResult, error) {
+	client := &http.Client{
+		Timeout: 30 * time.Minute,
+	}
+
+	// Step 1: Initiate upload (POST)
+	uploadURL := fmt.Sprintf("%s/v2/%s/blobs/uploads/", registry, repository)
+	req, err := http.NewRequestWithContext(ctx, "POST", uploadURL, nil)
+	if err != nil {
+		return BenchmarkResult{}, fmt.Errorf("creating POST request: %w", err)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return BenchmarkResult{}, fmt.Errorf("initiating upload: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusAccepted {
+		body, _ := io.ReadAll(resp.Body)
+		return BenchmarkResult{}, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
+	}
+
+	location := resp.Header.Get("Location")
+	if location == "" {
+		return BenchmarkResult{}, fmt.Errorf("no Location header in response")
+	}
+
+	if !strings.HasPrefix(location, "http") {
+		location = registry + location
+	}
+
+	// Start timing the actual upload (chunks + final PUT)
+	start := time.Now()
+
+	// Step 2: Upload chunks (PATCH requests)
+	totalSize := len(data)
+	offset := 0
+
+	for offset < totalSize {
+		end := offset + chunkSize
+		if end > totalSize {
+			end = totalSize
+		}
+		chunk := data[offset:end]
+
+		req, err = http.NewRequestWithContext(ctx, "PATCH", location, bytes.NewReader(chunk))
+		if err != nil {
+			return BenchmarkResult{}, fmt.Errorf("creating PATCH request: %w", err)
+		}
+		req.Header.Set("Content-Type", "application/octet-stream")
+		req.Header.Set("Content-Length", strconv.Itoa(len(chunk)))
+		req.Header.Set("Content-Range", fmt.Sprintf("%d-%d", offset, end-1))
+
+		resp, err = client.Do(req)
+		if err != nil {
+			return BenchmarkResult{}, fmt.Errorf("uploading chunk at offset %d: %w", offset, err)
+		}
+
+		if resp.StatusCode != http.StatusAccepted {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			return BenchmarkResult{}, fmt.Errorf("unexpected status %d for PATCH: %s", resp.StatusCode, string(body))
+		}
+
+		// Get updated location for next chunk
+		newLocation := resp.Header.Get("Location")
+		if newLocation != "" {
+			if !strings.HasPrefix(newLocation, "http") {
+				newLocation = registry + newLocation
+			}
+			location = newLocation
+		}
+		resp.Body.Close()
+
+		offset = end
+	}
+
+	// Step 3: Complete upload (PUT with digest)
+	if strings.Contains(location, "?") {
+		location = location + "&digest=" + dgst.String()
+	} else {
+		location = location + "?digest=" + dgst.String()
+	}
+
+	req, err = http.NewRequestWithContext(ctx, "PUT", location, nil)
+	if err != nil {
+		return BenchmarkResult{}, fmt.Errorf("creating PUT request: %w", err)
+	}
+	req.Header.Set("Content-Length", "0")
+
+	resp, err = client.Do(req)
+	if err != nil {
+		return BenchmarkResult{}, fmt.Errorf("completing upload: %w", err)
+	}
+	defer resp.Body.Close()
+
+	duration := time.Since(start)
+
+	if resp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(resp.Body)
+		return BenchmarkResult{}, fmt.Errorf("unexpected status %d for PUT: %s", resp.StatusCode, string(body))
+	}
+
+	throughput := float64(len(data)) / duration.Seconds() / (1024 * 1024)
+
+	return BenchmarkResult{
+		Size:       int64(len(data)),
+		Duration:   duration,
+		Throughput: throughput,
+	}, nil
+}
+
 // benchmarkPull benchmarks pulling a blob from the registry
 func benchmarkPull(ctx context.Context, registry, repository string, dgst digest.Digest, expectedSize int64) (BenchmarkResult, error) {
 	client := &http.Client{
@@ -376,6 +684,240 @@ func deleteBlob(ctx context.Context, registry, repository string, dgst digest.Di
 	return nil
 }
 
+// createManifest creates a Docker Schema v2 manifest referencing config and layer blobs
+func createManifest(configDigest digest.Digest, configSize int64, layerDigests []digest.Digest, layerSizes []int64) benchmarkManifest {
+	layers := make([]descriptorBenchmark, len(layerDigests))
+	for i, dgst := range layerDigests {
+		layers[i] = descriptorBenchmark{
+			MediaType: mediaTypeLayer,
+			Size:      layerSizes[i],
+			Digest:    dgst.String(),
+		}
+	}
+
+	return benchmarkManifest{
+		SchemaVersion: 2,
+		MediaType:     mediaTypeManifest,
+		Config: descriptorBenchmark{
+			MediaType: mediaTypeImageConfig,
+			Size:      configSize,
+			Digest:    configDigest.String(),
+		},
+		Layers: layers,
+	}
+}
+
+// pushManifest pushes a manifest to the registry
+func pushManifest(ctx context.Context, registry, repository, tag string, manifest benchmarkManifest) (time.Duration, error) {
+	client := &http.Client{
+		Timeout: 5 * time.Minute,
+	}
+
+	manifestJSON, err := json.Marshal(manifest)
+	if err != nil {
+		return 0, fmt.Errorf("marshaling manifest: %w", err)
+	}
+
+	manifestURL := fmt.Sprintf("%s/v2/%s/manifests/%s", registry, repository, tag)
+
+	start := time.Now()
+
+	req, err := http.NewRequestWithContext(ctx, "PUT", manifestURL, bytes.NewReader(manifestJSON))
+	if err != nil {
+		return 0, fmt.Errorf("creating PUT request: %w", err)
+	}
+	req.Header.Set("Content-Type", mediaTypeManifest)
+	req.Header.Set("Content-Length", strconv.Itoa(len(manifestJSON)))
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("pushing manifest: %w", err)
+	}
+	defer resp.Body.Close()
+
+	duration := time.Since(start)
+
+	if resp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(resp.Body)
+		return 0, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
+	}
+
+	return duration, nil
+}
+
+// pullManifest pulls a manifest from the registry
+func pullManifest(ctx context.Context, registry, repository, tag string) (benchmarkManifest, time.Duration, error) {
+	client := &http.Client{
+		Timeout: 5 * time.Minute,
+	}
+
+	manifestURL := fmt.Sprintf("%s/v2/%s/manifests/%s", registry, repository, tag)
+
+	start := time.Now()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", manifestURL, nil)
+	if err != nil {
+		return benchmarkManifest{}, 0, fmt.Errorf("creating GET request: %w", err)
+	}
+	req.Header.Set("Accept", mediaTypeManifest)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return benchmarkManifest{}, 0, fmt.Errorf("fetching manifest: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return benchmarkManifest{}, 0, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return benchmarkManifest{}, 0, fmt.Errorf("reading manifest body: %w", err)
+	}
+
+	duration := time.Since(start)
+
+	var manifest benchmarkManifest
+	if err := json.Unmarshal(body, &manifest); err != nil {
+		return benchmarkManifest{}, 0, fmt.Errorf("unmarshaling manifest: %w", err)
+	}
+
+	return manifest, duration, nil
+}
+
+// deleteManifest deletes a manifest from the registry
+func deleteManifest(ctx context.Context, registry, repository, tag string) error {
+	client := &http.Client{
+		Timeout: 5 * time.Minute,
+	}
+
+	manifestURL := fmt.Sprintf("%s/v2/%s/manifests/%s", registry, repository, tag)
+
+	req, err := http.NewRequestWithContext(ctx, "DELETE", manifestURL, nil)
+	if err != nil {
+		return fmt.Errorf("creating DELETE request: %w", err)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("deleting manifest: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Accept 202 (Accepted) or 404 (Not Found - already deleted)
+	if resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusNotFound {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+// benchmarkFullImagePush benchmarks a full image push (config + layers + manifest)
+func benchmarkFullImagePush(ctx context.Context, registry, repository, tag string, configData []byte, configDigest digest.Digest, layerData [][]byte, layerDigests []digest.Digest, useChunked bool, chunkSize int) (FullImageResult, error) {
+	result := FullImageResult{
+		NumLayers:     len(layerData),
+		ChunkedUpload: useChunked,
+		ChunkSize:     chunkSize,
+	}
+
+	totalStart := time.Now()
+
+	// Push config blob
+	var configResult BenchmarkResult
+	var err error
+	if useChunked {
+		configResult, err = pushBlobChunked(ctx, registry, repository, configData, configDigest, chunkSize)
+	} else {
+		configResult, err = benchmarkPush(ctx, registry, repository, configData, configDigest, 0)
+	}
+	if err != nil {
+		return result, fmt.Errorf("pushing config blob: %w", err)
+	}
+	result.ConfigPushDuration = configResult.Duration
+	result.TotalBytes = int64(len(configData))
+
+	// Push layer blobs
+	result.LayerPushDurations = make([]int64, len(layerData))
+	layerSizes := make([]int64, len(layerData))
+	for i, data := range layerData {
+		var layerResult BenchmarkResult
+		if useChunked {
+			layerResult, err = pushBlobChunked(ctx, registry, repository, data, layerDigests[i], chunkSize)
+		} else {
+			layerResult, err = benchmarkPush(ctx, registry, repository, data, layerDigests[i], i)
+		}
+		if err != nil {
+			return result, fmt.Errorf("pushing layer %d: %w", i, err)
+		}
+		result.LayerPushDurations[i] = layerResult.Duration.Milliseconds()
+		layerSizes[i] = int64(len(data))
+		result.TotalBytes += int64(len(data))
+	}
+
+	// Create and push manifest
+	manifest := createManifest(configDigest, int64(len(configData)), layerDigests, layerSizes)
+	manifestDuration, err := pushManifest(ctx, registry, repository, tag, manifest)
+	if err != nil {
+		return result, fmt.Errorf("pushing manifest: %w", err)
+	}
+	result.ManifestPushDuration = manifestDuration
+
+	result.TotalPushDuration = time.Since(totalStart)
+	result.PushThroughputMBps = float64(result.TotalBytes) / result.TotalPushDuration.Seconds() / (1024 * 1024)
+
+	return result, nil
+}
+
+// benchmarkFullImagePull benchmarks a full image pull (manifest + config + layers)
+func benchmarkFullImagePull(ctx context.Context, registry, repository, tag string, expectedTotalBytes int64) (FullImageResult, error) {
+	result := FullImageResult{}
+
+	totalStart := time.Now()
+
+	// Pull manifest
+	manifest, manifestDuration, err := pullManifest(ctx, registry, repository, tag)
+	if err != nil {
+		return result, fmt.Errorf("pulling manifest: %w", err)
+	}
+	result.ManifestPullDuration = manifestDuration
+	result.NumLayers = len(manifest.Layers)
+
+	// Pull config blob
+	configDigest, err := digest.Parse(manifest.Config.Digest)
+	if err != nil {
+		return result, fmt.Errorf("parsing config digest: %w", err)
+	}
+	configResult, err := benchmarkPull(ctx, registry, repository, configDigest, manifest.Config.Size)
+	if err != nil {
+		return result, fmt.Errorf("pulling config blob: %w", err)
+	}
+	result.ConfigPullDuration = configResult.Duration
+	result.TotalBytes = configResult.Size
+
+	// Pull layer blobs
+	result.LayerPullDurations = make([]int64, len(manifest.Layers))
+	for i, layer := range manifest.Layers {
+		layerDigest, err := digest.Parse(layer.Digest)
+		if err != nil {
+			return result, fmt.Errorf("parsing layer %d digest: %w", i, err)
+		}
+		layerResult, err := benchmarkPull(ctx, registry, repository, layerDigest, layer.Size)
+		if err != nil {
+			return result, fmt.Errorf("pulling layer %d: %w", i, err)
+		}
+		result.LayerPullDurations[i] = layerResult.Duration.Milliseconds()
+		result.TotalBytes += layerResult.Size
+	}
+
+	result.TotalPullDuration = time.Since(totalStart)
+	result.PullThroughputMBps = float64(result.TotalBytes) / result.TotalPullDuration.Seconds() / (1024 * 1024)
+
+	return result, nil
+}
+
 // aggregateResults aggregates multiple benchmark results into statistics
 func aggregateResults(size int64, results []BenchmarkResult) SizeResults {
 	if len(results) == 0 {
@@ -436,31 +978,32 @@ func outputText(output BenchmarkOutput) {
 	fmt.Println("=====================================")
 	fmt.Printf("Registry: %s\n", output.Registry)
 	fmt.Printf("Repository: %s\n", output.Repository)
+	fmt.Printf("Mode: %s\n", output.Mode)
 	fmt.Printf("Timestamp: %s\n", output.Timestamp)
 	fmt.Println()
 
 	if len(output.PushResults) > 0 {
 		fmt.Println("PUSH RESULTS")
-		fmt.Println("+--------+------------+-----------------+--------------+")
-		fmt.Println("|  Size  | Iterations |   Throughput    |   Std Dev    |")
-		fmt.Println("+--------+------------+-----------------+--------------+")
+		fmt.Println("+-----------+------------+-----------------+--------------+")
+		fmt.Println("|   Size    | Iterations |   Throughput    |   Std Dev    |")
+		fmt.Println("+-----------+------------+-----------------+--------------+")
 		for _, r := range output.PushResults {
-			fmt.Printf("| %6s | %10d | %10.2f MB/s | %8.2f MB/s |\n",
+			fmt.Printf("| %9s | %10d | %10.2f MB/s | %8.2f MB/s |\n",
 				r.SizeHuman, r.Iterations, r.MeanThroughput, r.StdDevThroughput)
 		}
-		fmt.Println("+--------+------------+-----------------+--------------+")
+		fmt.Println("+-----------+------------+-----------------+--------------+")
 		fmt.Println()
 	}
 
 	if len(output.PullResults) > 0 {
 		fmt.Println("PULL RESULTS")
-		fmt.Println("+--------+------------+-----------------+--------------+")
-		fmt.Println("|  Size  | Iterations |   Throughput    |   Std Dev    |")
-		fmt.Println("+--------+------------+-----------------+--------------+")
+		fmt.Println("+-----------+------------+-----------------+--------------+")
+		fmt.Println("|   Size    | Iterations |   Throughput    |   Std Dev    |")
+		fmt.Println("+-----------+------------+-----------------+--------------+")
 		for _, r := range output.PullResults {
-			fmt.Printf("| %6s | %10d | %10.2f MB/s | %8.2f MB/s |\n",
+			fmt.Printf("| %9s | %10d | %10.2f MB/s | %8.2f MB/s |\n",
 				r.SizeHuman, r.Iterations, r.MeanThroughput, r.StdDevThroughput)
 		}
-		fmt.Println("+--------+------------+-----------------+--------------+")
+		fmt.Println("+-----------+------------+-----------------+--------------+")
 	}
 }
