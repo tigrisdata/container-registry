@@ -13,6 +13,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/opencontainers/go-digest"
@@ -816,6 +817,7 @@ func deleteManifest(ctx context.Context, registry, repository, tag string) error
 }
 
 // benchmarkFullImagePush benchmarks a full image push (config + layers + manifest)
+// Layers are pushed concurrently to simulate real Docker client behavior
 func benchmarkFullImagePush(ctx context.Context, registry, repository, tag string, configData []byte, configDigest digest.Digest, layerData [][]byte, layerDigests []digest.Digest, useChunked bool, chunkSize int) (FullImageResult, error) {
 	result := FullImageResult{
 		NumLayers:     len(layerData),
@@ -839,22 +841,38 @@ func benchmarkFullImagePush(ctx context.Context, registry, repository, tag strin
 	result.ConfigPushDuration = configResult.Duration
 	result.TotalBytes = int64(len(configData))
 
-	// Push layer blobs
+	// Push layer blobs concurrently (like Docker client does)
 	result.LayerPushDurations = make([]int64, len(layerData))
 	layerSizes := make([]int64, len(layerData))
+	layerResults := make([]BenchmarkResult, len(layerData))
+	layerErrors := make([]error, len(layerData))
+
+	var wg sync.WaitGroup
 	for i, data := range layerData {
-		var layerResult BenchmarkResult
-		if useChunked {
-			layerResult, err = pushBlobChunked(ctx, registry, repository, data, layerDigests[i], chunkSize)
-		} else {
-			layerResult, err = benchmarkPush(ctx, registry, repository, data, layerDigests[i], i)
+		wg.Add(1)
+		go func(idx int, layerBytes []byte, layerDigest digest.Digest) {
+			defer wg.Done()
+			var layerResult BenchmarkResult
+			var layerErr error
+			if useChunked {
+				layerResult, layerErr = pushBlobChunked(ctx, registry, repository, layerBytes, layerDigest, chunkSize)
+			} else {
+				layerResult, layerErr = benchmarkPush(ctx, registry, repository, layerBytes, layerDigest, idx)
+			}
+			layerResults[idx] = layerResult
+			layerErrors[idx] = layerErr
+		}(i, data, layerDigests[i])
+	}
+	wg.Wait()
+
+	// Check for errors and collect results
+	for i := range layerData {
+		if layerErrors[i] != nil {
+			return result, fmt.Errorf("pushing layer %d: %w", i, layerErrors[i])
 		}
-		if err != nil {
-			return result, fmt.Errorf("pushing layer %d: %w", i, err)
-		}
-		result.LayerPushDurations[i] = layerResult.Duration.Milliseconds()
-		layerSizes[i] = int64(len(data))
-		result.TotalBytes += int64(len(data))
+		result.LayerPushDurations[i] = layerResults[i].Duration.Milliseconds()
+		layerSizes[i] = int64(len(layerData[i]))
+		result.TotalBytes += int64(len(layerData[i]))
 	}
 
 	// Create and push manifest
@@ -872,6 +890,7 @@ func benchmarkFullImagePush(ctx context.Context, registry, repository, tag strin
 }
 
 // benchmarkFullImagePull benchmarks a full image pull (manifest + config + layers)
+// Layers are pulled concurrently to simulate real Docker client behavior
 func benchmarkFullImagePull(ctx context.Context, registry, repository, tag string, expectedTotalBytes int64) (FullImageResult, error) {
 	result := FullImageResult{}
 
@@ -897,19 +916,38 @@ func benchmarkFullImagePull(ctx context.Context, registry, repository, tag strin
 	result.ConfigPullDuration = configResult.Duration
 	result.TotalBytes = configResult.Size
 
-	// Pull layer blobs
+	// Pull layer blobs concurrently (like Docker client does)
 	result.LayerPullDurations = make([]int64, len(manifest.Layers))
+	layerResults := make([]BenchmarkResult, len(manifest.Layers))
+	layerErrors := make([]error, len(manifest.Layers))
+
+	var wg sync.WaitGroup
 	for i, layer := range manifest.Layers {
-		layerDigest, err := digest.Parse(layer.Digest)
-		if err != nil {
-			return result, fmt.Errorf("parsing layer %d digest: %w", i, err)
+		wg.Add(1)
+		go func(idx int, layerDesc descriptorBenchmark) {
+			defer wg.Done()
+			layerDigest, parseErr := digest.Parse(layerDesc.Digest)
+			if parseErr != nil {
+				layerErrors[idx] = fmt.Errorf("parsing layer %d digest: %w", idx, parseErr)
+				return
+			}
+			layerResult, pullErr := benchmarkPull(ctx, registry, repository, layerDigest, layerDesc.Size)
+			if pullErr != nil {
+				layerErrors[idx] = pullErr
+				return
+			}
+			layerResults[idx] = layerResult
+		}(i, layer)
+	}
+	wg.Wait()
+
+	// Check for errors and collect results
+	for i := range manifest.Layers {
+		if layerErrors[i] != nil {
+			return result, fmt.Errorf("pulling layer %d: %w", i, layerErrors[i])
 		}
-		layerResult, err := benchmarkPull(ctx, registry, repository, layerDigest, layer.Size)
-		if err != nil {
-			return result, fmt.Errorf("pulling layer %d: %w", i, err)
-		}
-		result.LayerPullDurations[i] = layerResult.Duration.Milliseconds()
-		result.TotalBytes += layerResult.Size
+		result.LayerPullDurations[i] = layerResults[i].Duration.Milliseconds()
+		result.TotalBytes += layerResults[i].Size
 	}
 
 	result.TotalPullDuration = time.Since(totalStart)
